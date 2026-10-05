@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>People Preview</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #e3e6d6; overflow: hidden; font: 600 13px system-ui, sans-serif; }
+  canvas { display: block; width: 100%; height: 100%; }
+  #info { position: fixed; left: 10px; right: 10px; top: 8px; color: #222; background: rgba(255,255,255,.7); padding: 4px 8px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="info"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="people.js"></script>
+<script>
+(() => {
+  // seeded Math.random so screenshots are comparable between iterations (?seed=N to change)
+  const Q = new URLSearchParams(location.search);
+  let s = +(Q.get('seed') || 42);
+  const FROM = +(Q.get('from') || 0), FACES = Q.has('faces');
+  Math.random = () => ((s = (s * 16807) % 2147483647) / 2147483647);
+
+  const canvas = document.getElementById('c');
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.setScissorTest(true);
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0xcfe3ea);
+  scene.fog = new THREE.Fog(0xe3e6d6, 70, 215);
+  scene.add(new THREE.HemisphereLight(0xe4f4ff, 0xb5714a, 0.72));
+  const sun = new THREE.DirectionalLight(0xfff0d2, 0.95);
+  sun.position.set(-6, 14, 8); sun.castShadow = true; sun.shadow.mapSize.set(1024, 1024);
+  Object.assign(sun.shadow.camera, { left: -12, right: 12, top: 12, bottom: -12, near: 1, far: 60 });
+  scene.add(sun);
+
+  /* minimal fake kit, same shape as the engine's */
+  const G = {
+    box: new THREE.BoxGeometry(1, 1, 1), cyl: new THREE.CylinderGeometry(0.5, 0.5, 1, 14),
+    cyl6: new THREE.CylinderGeometry(0.5, 0.5, 1, 6), sph: new THREE.SphereGeometry(0.5, 10, 8),
+    ico: new THREE.IcosahedronGeometry(0.5, 0), pyr: new THREE.ConeGeometry(0.5, 1, 4).rotateY(Math.PI / 4),
+    cone: new THREE.ConeGeometry(0.5, 1, 7), disc: new THREE.CircleGeometry(0.5, 20).rotateX(-Math.PI / 2),
+  };
+  const mats = {};
+  const M = c => mats[c] || (mats[c] = new THREE.MeshLambertMaterial({ color: c }));
+  const add = (p, geo, color, sx, sy, sz, x, y, z, cast) => {
+    const m = new THREE.Mesh(geo, typeof color === 'number' ? M(color) : color);
+    m.scale.set(sx, sy, sz); m.position.set(x, y, z); if (cast) m.castShadow = true; p.add(m); return m;
+  };
+  const rand = (a, b) => a + Math.random() * (b - a);
+  const kit = {
+    THREE, G, M, add, rand, randi: (a, b) => Math.floor(rand(a, b + 1)), pick: a => a[Math.floor(Math.random() * a.length)],
+    clamp: (v, a, b) => Math.max(a, Math.min(b, v)),
+    canvasTex(w, h, draw) {
+      const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h);
+      const t = new THREE.CanvasTexture(c); t.anisotropy = renderer.capabilities.getMaxAnisotropy(); return t;
+    },
+  };
+
+  /* ground: laterite + pavement strip */
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), M(0xc0562f)); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
+  const pave = new THREE.Mesh(new THREE.PlaneGeometry(40, 4), M(0xb9b2a4)); pave.rotation.x = -Math.PI / 2; pave.position.set(0, 0.005, 0); pave.receiveShadow = true; scene.add(pave);
+
+  const roles = ['passenger', 'hawker', 'apprentice', 'passenger', 'vendor', 'passenger', 'rider', 'hawker', 'apprentice', 'driver'];
+  const stat = p => { let m = 0, t = 0; p.traverse(o => { if (o.isMesh) { m++; t += (o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count) / 3; } }); return [m, t]; };
+  const stool = p => add(scene, G.box, 0x6b4f37, 0.5, p.userData.seatY, 0.5, p.position.x, p.userData.seatY / 2, -0.05, true);
+  // pairs: high LOD (left) and its low-LOD twin (right) made from the same random state, so outfits match
+  // per-person range over 300 random people per LOD (all roles); also warms every material cache,
+  // because three's UUIDs consume Math.random and a cache miss would desync the twins below
+  const pm = { high: new Set(), low: new Set() }, maps = { high: new Set(), low: new Set() };
+  const range = lod => {
+    let mn = [1e9, 1e9], mx = [0, 0], sum = [0, 0];
+    for (let i = 0; i < 300; i++) {
+      const r = ['passenger', 'hawker', 'apprentice', 'vendor', 'rider', 'driver'][i % 6];
+      const p = PODA.people.make(kit, { role: r, tray: r === 'hawker', lod }), st = stat(p);
+      p.traverse(o => { if (o.isMesh) { pm[lod].add(o.material.uuid); if (o.material.map) maps[lod].add(o.material.map.uuid); } });
+      mn = [Math.min(mn[0], st[0]), Math.min(mn[1], st[1])]; mx = [Math.max(mx[0], st[0]), Math.max(mx[1], st[1])];
+      sum[0] += st[0]; sum[1] += st[1];
+    }
+    return `${lod}: ${mn[0]}–${mx[0]} meshes (avg ${(sum[0] / 300).toFixed(1)}), ${mn[1]}–${mx[1]} tris (avg ${Math.round(sum[1] / 300)}), ${maps[lod].size} texture(s), ${pm[lod].size} materials`;
+  };
+  const R = [range('high'), range('low')];
+  const lineup = [], twins = [], acc = { high: [0, 0], low: [0, 0] };
+  roles.forEach((role, i) => {
+    const opt = { role, cast: true };
+    if (role === 'hawker') { opt.tray = true; opt.lappa = true; }
+    const s0 = s, x0 = (i - 4.5) * 1.9;
+    const hi = PODA.people.make(kit, { ...opt, lod: 'high' });
+    s = s0;
+    const lo = PODA.people.make(kit, { ...opt, lod: 'low' });
+    hi.position.set(x0 - 0.4, 0, 0); lo.position.set(x0 + 0.4, 0, 0);
+    for (const [p, k] of [[hi, 'high'], [lo, 'low']]) {
+      p.rotation.y = +(Q.get('turn') || 0);
+      if (p.userData.seated) stool(p);
+      scene.add(p); const st = stat(p); acc[k][0] += st[0]; acc[k][1] += st[1];
+    }
+    lineup.push(hi); twins.push(lo);
+  });
+  // two high-LOD walkers, and a far low-LOD crowd 25-45 m from the camera (the 15-40 m use case)
+  const walkers = [];
+  for (let i = 0; i < 2; i++) {
+    const p = PODA.people.make(kit, { cast: true, role: i ? 'hawker' : 'passenger', tray: !!i, lappa: !!i, lod: 'high' });
+    p.position.set(-3 + i * 6, 0, -2.2); p.rotation.y = i ? -Math.PI / 2 : Math.PI / 2; scene.add(p); walkers.push(p);
+  }
+  PODA.people.lodDefault = 'low';     // exercise the engine's chunk-fill path: no explicit opt.lod
+  for (let i = 0; i < 40; i++) {
+    const p = PODA.people.make(kit, { cast: true, role: kit.pick(['passenger', 'passenger', 'vendor', 'hawker']), tray: Math.random() < 0.2 });
+    p.position.set(rand(-14, 14), 0, rand(-30, -12)); p.rotation.y = rand(-1.2, 1.2); scene.add(p);
+  }
+  PODA.people.lodDefault = null;
+  document.getElementById('info').textContent = `left = high, right = low twin · over 300 each → ${R[0]} | ${R[1]} | atlas tile-crossing tris: ${PODA.people._atlasSpan || 0}`;
+
+  const camFar = new THREE.PerspectiveCamera(60, 1, 0.1, 700);
+  camFar.position.set(0, 5.3, 12.5); camFar.lookAt(0, 0.6, 0);
+  const camNear = new THREE.PerspectiveCamera(30, 1, 0.05, 100);
+
+  function frame(t) {
+    t /= 1000;
+    for (const w of walkers) PODA.people.walk(w, t * 1.6);
+    const W = canvas.clientWidth, H = canvas.clientHeight;
+    if (canvas.width !== Math.floor(W * renderer.getPixelRatio())) renderer.setSize(W, H, false);
+    const hTop = FACES ? 0 : Math.round(H * 0.58);
+    // top: game-distance line-up
+    camFar.aspect = W / Math.max(1, hTop); camFar.updateProjectionMatrix();
+    renderer.setViewport(0, H - hTop, W, hTop); renderer.setScissor(0, H - hTop, W, hTop);
+    if (hTop) renderer.render(scene, camFar);
+    // bottom: close-ups of five high/low pairs (or high-LOD faces with ?faces)
+    const n = 5, cw = W / n, hb = H - hTop;
+    for (let i = 0; i < n; i++) {
+      const p = lineup[FROM + i], hgt = p.userData.height, cx = (p.position.x + twins[FROM + i].position.x) / 2;
+      camNear.aspect = cw / hb; camNear.updateProjectionMatrix();
+      if (FACES) { camNear.position.set(p.position.x + 0.35, hgt * 0.92, 1.0); camNear.lookAt(p.position.x, hgt * 0.86, 0); }
+      else { camNear.position.set(cx + 0.5, 1.5, 4.6); camNear.lookAt(cx, 0.95, 0); }
+      renderer.setViewport(i * cw, 0, cw, hb); renderer.setScissor(i * cw, 0, cw, hb);
+      renderer.render(scene, camNear);
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
