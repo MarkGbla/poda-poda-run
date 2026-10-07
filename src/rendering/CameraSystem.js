@@ -21,8 +21,8 @@
       const amount = run.shake * run.shake * .12;
       const portrait = c.aspect < .8;
       c.position.x += (run.x + (portrait ? 1.0 : 2.0) - c.position.x) * (1 - Math.exp(-dt * 2.8));
-      c.position.y += (4.5 - this.acceleration * .12 - c.position.y) * ease;
-      c.position.z += (13.5 + this.acceleration * .65 - c.position.z) * ease;
+      c.position.y += ((run.vehicle?.camera.height || 4.5) + (run.jumpY || 0) * .25 - this.acceleration * .12 - c.position.y) * ease;
+      c.position.z += ((run.vehicle?.camera.distance || 13.5) + this.acceleration * .65 - c.position.z) * ease;
       this.lookX += (run.x - this.lookX) * (1 - Math.exp(-dt * 3.5));
       c.position.x += this.random(-amount, amount);
       c.position.y += this.random(-amount, amount);
