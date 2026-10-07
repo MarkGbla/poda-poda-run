@@ -1345,15 +1345,17 @@ function saveLocalScore(){
 $('driverName').value=store.get('poda-driver-name')||'';
 $('saveScore').addEventListener('click',saveLocalScore);
 $('copyLink').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(gameURL);$('shareStatus').textContent='Game link copied.';}catch{$('shareStatus').textContent=gameURL;}});
-$('shareScore').addEventListener('click',async()=>{
+$('shareScore').addEventListener('click',()=>exportPoster(true));
+$('downloadPoster').addEventListener('click',()=>exportPoster(false));
+async function exportPoster(allowNativeShare){
  if(!lastResult)return;saveLocalScore();$('shareScore').disabled=true;$('shareStatus').textContent='Creating your 4K poster…';
  try{
  const blob=await createScorePoster({THREE,renderer,player:resultModel,name:$('driverName').value,score:lastResult.score,vehicle:resultVehicle,route:resultRoute,url:gameURL});
  const file=new File([blob],'poda-poda-score.png',{type:'image/png'});
- if(navigator.canShare?.({files:[file]})){try{await navigator.share({files:[file],title:'Poda-Poda Run',text:'Can you beat my Freetown score?'});$('shareStatus').textContent='Poster shared.';return;}catch(error){if(error.name==='AbortError'){$('shareStatus').textContent='Sharing cancelled. Your score is saved.';return;}}}
+ if(allowNativeShare && navigator.canShare?.({files:[file]})){$('shareScore').disabled=false;$('shareStatus').textContent='Choose an app in the share dialog, or use Download PNG.';try{await navigator.share({files:[file],title:'Poda-Poda Run',text:'Can you beat my Freetown score?'});$('shareStatus').textContent='Poster shared.';return;}catch(error){if(error.name==='AbortError'){$('shareStatus').textContent='Sharing cancelled. Your score is saved.';return;}}}
  const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=file.name;a.click();setTimeout(()=>URL.revokeObjectURL(url),30000);$('shareStatus').textContent='4K PNG downloaded. Share it with your crew!';
  }catch(error){$('shareStatus').textContent='Could not create the poster. Please try again.';console.error(error);}finally{$('shareScore').disabled=false;}
-});
+}
 async function loadLeaderboard() {
  const period=$('leaderPeriod').value,now=new Date(),start=new Date(now);start.setHours(0,0,0,0);if(period==='week')start.setDate(start.getDate()-(start.getDay()+6)%7);
  const entries=readScores().filter(r=>period==='all'||r.date>=start.getTime()).sort((a,b)=>b.score-a.score);
