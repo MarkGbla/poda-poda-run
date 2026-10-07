@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Your score · Poda-Poda Run</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #071c16; color: #fff; font-family: system-ui, sans-serif; }
+    main { max-width: 1400px; margin: auto; padding: 32px; display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 32px; align-items: center; min-height: 100vh; }
+    .flag { height: 6px; background: linear-gradient(to right, #1eb864 33.33%, white 33.33% 66.66%, #168bdd 66.66%); border-radius: 3px; }
+    h1 { font-size: 36px; line-height: 1.1; margin-bottom: 16px; }
+    p { color: #bed4ca; line-height: 1.6; }
+    label { display: block; font-weight: 700; margin: 24px 0 8px; }
+    input { width: 100%; border: 1px solid #638276; border-radius: 10px; padding: 14px; background: #122e24; color: white; font: inherit; }
+    input:focus-visible, button:focus-visible, a:focus-visible { outline: 3px solid #62baff; outline-offset: 4px; }
+    button, .play { display: block; width: 100%; padding: 15px; border-radius: 10px; border: 0; font: inherit; font-weight: 800; text-align: center; cursor: pointer; text-decoration: none; }
+    button { margin-top: 24px; background: #2de27a; color: #062319; }
+    button:disabled { opacity: .5; cursor: wait; }
+    .play { margin-top: 12px; background: #194233; color: white; }
+    #status { min-height: 48px; font-size: 14px; }
+    canvas { display: block; width: 100%; height: auto; border-radius: 20px; box-shadow: 0 20px 70px #0008; }
+    .note { font-size: 13px; }
+    @media (max-width: 760px) { main { padding: 20px; grid-template-columns: 1fr; gap: 20px; } h1 { font-size: 30px; } }
+  </style>
+</head>
+<body>
+  <main>
+    <section aria-labelledby="title">
+      <div class="flag" aria-hidden="true"></div>
+      <h1 id="title">Your run.<br>Your score.</h1>
+      <p>Put your name and score on your Freetown run, then share the flyer with your crew.</p>
+      <form id="editor">
+        <label for="name">Player name</label>
+        <input id="name" name="name" maxlength="24" placeholder="Salone driver" autocomplete="nickname" required>
+        <label for="score">Your score</label>
+        <input id="score" name="score" type="number" min="0" max="999999999" step="1" value="0" inputmode="numeric" required>
+        <button id="share" type="submit" disabled>Share score</button>
+      </form>
+      <a class="play" href="https://poda-poda-run.markgbla16.workers.dev/">Think you can beat me? Play now</a>
+      <p class="note">Game link: <a href="https://poda-poda-run.markgbla16.workers.dev/" style="color:#7bcaff;overflow-wrap:anywhere">https://poda-poda-run.markgbla16.workers.dev/</a></p>
+      <p class="note">Custom score card · scores entered here do not update the leaderboard.</p>
+      <p id="status" role="status">Loading your score card…</p>
+    </section>
+    <canvas id="poster" width="1254" height="1254" role="img" aria-label="Your personalized Poda-Poda Run score card"></canvas>
+  </main>
+  <script type="module">
+    const name = document.querySelector('#name');
+    const score = document.querySelector('#score');
+    const canvas = document.querySelector('#poster');
+    const ctx = canvas.getContext('2d');
+    const status = document.querySelector('#status');
+    const share = document.querySelector('#share');
+    const gameURL = 'https://poda-poda-run.markgbla16.workers.dev/';
+    const art = new Image();
+    let ready = false;
+    let posterBlob = null;
+    let renderVersion = 0;
+    async function copyFlyer(blob) {
+      try {
+        await navigator.clipboard.write([new ClipboardItem({'image/png':blob})]);
+        status.textContent = 'Flyer copied. Paste it into WhatsApp and add the game link shown above.';
+      } catch {
+        status.textContent = 'This browser cannot share images. Open this page on a phone to share the flyer.';
+      }
+    }
+    function fittedText(text, x, y, size, width, color) {
+      ctx.font = `900 italic ${size}px system-ui, sans-serif`;
+      while (ctx.measureText(text).width > width && size > 12) {
+        ctx.font = `900 italic ${--size}px system-ui, sans-serif`;
+      }
+      ctx.fillStyle = color;
+      ctx.fillText(text, x, y);
+    }
+    function render() {
+      if (!ready) return;
+      ctx.drawImage(art, 0, 0, 1254, 1254);
+      // An opaque score panel covers the sample score, player and rank in the artwork.
+      ctx.fillStyle = '#07281f';
+      ctx.strokeStyle = '#050e09';
+      ctx.lineWidth = 9;
+      ctx.beginPath(); ctx.roundRect(55, 375, 640, 443, 28); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#29ea78'; ctx.fillRect(85, 403, 180, 7);
+      ctx.fillStyle = '#fff'; ctx.fillRect(265, 403, 180, 7);
+      ctx.fillStyle = '#139bea'; ctx.fillRect(445, 403, 180, 7);
+      fittedText('MY FREETOWN RUN', 85, 471, 36, 565, '#31f68a');
+      const points = score.validity.valid ? Number(score.value).toLocaleString('en-US') : '—';
+      fittedText(points, 78, 640, 145, 575, '#ffffff');
+      ctx.font = '700 23px system-ui, sans-serif'; ctx.fillStyle = '#b8d5c8'; ctx.fillText('DRIVING SCORE', 88, 684);
+      fittedText(name.value.trim() || 'Salone driver', 85, 773, 48, 565, '#ffffff');
+      // Replace the baked-in buttons with an invitation and the real game address.
+      ctx.fillStyle = '#07281f'; ctx.fillRect(0, 998, 1254, 256);
+      ctx.fillStyle = '#24e46a';
+      ctx.strokeStyle = '#04150d'; ctx.lineWidth = 8;
+      ctx.beginPath(); ctx.roundRect(70, 1020, 1114, 126, 25); ctx.fill(); ctx.stroke();
+      fittedText('THINK YOU CAN BEAT ME?', 121, 1103, 66, 1010, '#062418');
+      ctx.font = '700 30px system-ui, sans-serif';
+      ctx.fillStyle = '#fff'; ctx.textAlign = 'center';
+      ctx.fillText(gameURL, 627, 1209, 1150);
+      ctx.textAlign = 'start';
+      canvas.setAttribute('aria-label', `${name.value.trim() || 'Salone driver'}: ${points} points. Sierra Leone score card with a Lumley-bound poda-poda.`);
+      const version = ++renderVersion;
+      posterBlob = null; share.disabled = true;
+      canvas.toBlob(blob => {
+        if (version !== renderVersion) return;
+        posterBlob = blob;
+        share.disabled = !blob;
+        if (!blob) status.textContent = 'Could not prepare the flyer. Please try again.';
+      }, 'image/png');
+    }
+    document.querySelector('#editor').addEventListener('input', render);
+    document.querySelector('#editor').addEventListener('submit', async event => {
+      event.preventDefault();
+      if (!name.value.trim()) { name.setCustomValidity('Enter your player name.'); name.reportValidity(); return; }
+      if (!posterBlob) return;
+      const file = new File([posterBlob], 'poda-poda-score.png', {type:'image/png'});
+      const message = `${name.value.trim()} scored ${Number(score.value).toLocaleString('en-US')} in Poda-Poda Run. Think you can beat me? Play: ${gameURL}`;
+      if (navigator.canShare?.({files:[file]}) && navigator.share) {
+        try {
+          await navigator.share({files:[file], title:'Poda-Poda Run score', text:message});
+          status.textContent = 'Score shared with your crew!';
+        } catch (error) {
+          if (error.name !== 'AbortError') await copyFlyer(posterBlob);
+        }
+      } else {
+        await copyFlyer(posterBlob);
+      }
+    });
+    name.addEventListener('input', () => name.setCustomValidity(''));
+    art.onload = () => { ready = true; render(); status.textContent = 'Your preview updates as you type.'; };
+    art.onerror = () => { status.textContent = 'The artwork could not load. Reload the page to try again.'; };
+    art.src = './score-assets/sierra-leone.png';
+  </script>
+</body>
+</html>

@@ -1,6 +1,5 @@
 import '../base-ui.css';
 import '../drive-ui.css';
-import publicDomain from '../CNAME?raw';
 import './simulation/systems/RoadContactSystem.js';
 import { registerEasternDistricts } from './data/EasternDistricts.js';
 import { createScorePoster } from './ui/ScorePoster.js';
@@ -37,7 +36,7 @@ import './services/ApiClient.js';
 (() => {
 'use strict';
 const THREE = window.THREE;
-const gameURL = 'https://' + publicDomain.trim() + '/';
+const gameURL = 'https://poda-poda-run.markgbla16.workers.dev/';
 
 /* ================================================================
    Local flavour — everything Freetown lives here
@@ -1352,7 +1351,7 @@ async function exportPoster(allowNativeShare){
  try{
  const blob=await createScorePoster({THREE,renderer,player:resultModel,name:$('driverName').value,score:lastResult.score,vehicle:resultVehicle,route:resultRoute,url:gameURL});
  const file=new File([blob],'poda-poda-score.png',{type:'image/png'});
- if(allowNativeShare && navigator.canShare?.({files:[file]})){$('shareScore').disabled=false;$('shareStatus').textContent='Choose an app in the share dialog, or use Download PNG.';try{await navigator.share({files:[file],title:'Poda-Poda Run',text:'Can you beat my Freetown score?'});$('shareStatus').textContent='Poster shared.';return;}catch(error){if(error.name==='AbortError'){$('shareStatus').textContent='Sharing cancelled. Your score is saved.';return;}}}
+ if(allowNativeShare && navigator.canShare?.({files:[file]})){$('shareScore').disabled=false;$('shareStatus').textContent='Choose an app in the share dialog, or use Download PNG.';try{await navigator.share({files:[file],title:'Poda-Poda Run',text:`I scored ${lastResult.score.toLocaleString('en-US')} in Poda-Poda Run. Think you can beat me? Play: ${gameURL}`});$('shareStatus').textContent='Poster shared.';return;}catch(error){if(error.name==='AbortError'){$('shareStatus').textContent='Sharing cancelled. Your score is saved.';return;}}}
  const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=file.name;a.click();setTimeout(()=>URL.revokeObjectURL(url),30000);$('shareStatus').textContent='4K PNG downloaded. Share it with your crew!';
  }catch(error){$('shareStatus').textContent='Could not create the poster. Please try again.';console.error(error);}finally{$('shareScore').disabled=false;}
 }
