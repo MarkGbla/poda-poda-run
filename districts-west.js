@@ -26,24 +26,15 @@ window.PODA.districts = window.PODA.districts || {};
   // a unit horizontal plane (x,z extents via scale), reused for sand/sea/pool/decks
   const GP = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
 
-  // kit.shopTex is the engine's own shared shop-sign art (not ours to atlas), but we
-  // still cache one material per texture and reuse one geometry so picking the same
-  // sign for a whole chunk (instead of per building) costs at most one draw call.
-  const SHOP_SIGN_GEO = new THREE.PlaneGeometry(2.6, 2.6 * 112 / 512);
-  const shopMatCache = new Map();
-  function shopSignMat(texObj) {
-    let m = shopMatCache.get(texObj);
-    if (!m) { m = new THREE.MeshLambertMaterial({ map: texObj }); shopMatCache.set(texObj, m); }
-    return m;
-  }
-
   // ---- all signage packed into ONE atlas texture + ONE material, so every sign in a
   // chunk (however many different places they advertise) bakes into a single draw call
   // instead of one per distinct texture. Each row is a 512x160 sign; geometries are
   // built once with their UVs remapped to their row, then just scaled per use.
   const SIGN_ROWS = ['chapterOne', 'imatt', 'goderich', 'lumley', 'aberdeen', 'wilberforce', 'lumleyBeach', 'bar0', 'bar1', 'bar2', 'bar3', 'bar4'];
   const BAR_NAMES = ['bar0', 'bar1', 'bar2', 'bar3', 'bar4'];
-  let texReady = false, atlasMat = null;
+  let texReady = false, atlasMat = null, lumleyWallMats = [];
+  let lumleyShopMat = null, lumleyShutterMat = null, lumleyRoofMat = null;
+  const lumleyShopGeos = [];
   const signGeo = {};
   function signMesh(name, w, h) {
     const m = new THREE.Mesh(signGeo[name], atlasMat);
@@ -77,6 +68,87 @@ window.PODA.districts = window.PODA.districts || {};
       SIGN_ROWS.forEach((name, i) => { g.save(); g.translate(0, i * rowH); drawers[name](g, rowW, rowH); g.restore(); });
     });
     atlasMat = new THREE.MeshLambertMaterial({ map: atlasTex });
+    // One atlas keeps every storefront sign in a chunk in one baked draw call,
+    // while each shop can still have a different name and paint colour.
+    const shopNames = kit.DATA.shops;
+    const shopColours = ['#176b43', '#215b82', '#a43d29', '#b68a27', '#285a5b', '#6e456c'];
+    const shopAtlas = kit.canvasTex(512, 112 * shopNames.length, (g, w) => {
+      shopNames.forEach((name, i) => {
+        const y = i * 112;
+        g.fillStyle = shopColours[i % shopColours.length]; g.fillRect(0, y, w, 112);
+        g.fillStyle = 'rgba(255,255,255,.12)'; g.fillRect(0, y + 7, w, 4);
+        g.fillStyle = '#f6edd5'; g.textAlign = 'center'; g.textBaseline = 'middle';
+        kit.fitText(g, name, w - 28, 45, 'Bungee, Impact, sans-serif');
+        g.fillText(name, w / 2, y + 56);
+        g.fillStyle = 'rgba(20,30,27,.32)'; g.fillRect(0, y + 106, w, 6);
+      });
+    });
+    lumleyShopMat = new THREE.MeshLambertMaterial({ map: shopAtlas });
+    shopNames.forEach((_, i) => {
+      const geo = new THREE.PlaneGeometry(2.6, 2.6 * 112 / 512);
+      const uv = geo.attributes.uv;
+      const top = 1 - i / shopNames.length, bottom = 1 - (i + 1) / shopNames.length;
+      for (let k = 0; k < uv.count; k++) uv.setY(k, uv.getY(k) === 1 ? top : bottom);
+      uv.needsUpdate = true; lumleyShopGeos.push(geo);
+    });
+    const shutterTex = kit.canvasTex(128, 128, (g, w, h) => {
+      g.fillStyle = '#3e4a49'; g.fillRect(0, 0, w, h);
+      for (let y = 0; y < h; y += 9) {
+        g.fillStyle = 'rgba(9,20,20,.36)'; g.fillRect(0, y + 7, w, 2);
+        g.fillStyle = 'rgba(187,194,176,.16)'; g.fillRect(0, y + 1, w, 1);
+      }
+      g.fillStyle = 'rgba(91,65,42,.27)'; g.fillRect(8, 0, 14, h);
+      g.fillRect(w - 20, h * .42, 11, h * .58);
+    });
+    lumleyShutterMat = new THREE.MeshLambertMaterial({ map: shutterTex });
+    const roofTex = kit.canvasTex(256, 128, (g, w, h) => {
+      g.fillStyle = '#77766d'; g.fillRect(0, 0, w, h);
+      for (let x = 0; x < w; x += 12) {
+        g.fillStyle = 'rgba(235,227,206,.17)'; g.fillRect(x, 0, 2, h);
+        g.fillStyle = 'rgba(34,42,40,.27)'; g.fillRect(x + 8, 0, 3, h);
+      }
+      let seed = 9281;
+      const next = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+      for (let i = 0; i < 95; i++) {
+        const x = next() * w, y = next() * h, r = 2 + next() * 12;
+        const rust = g.createRadialGradient(x, y, 0, x, y, r);
+        rust.addColorStop(0, 'rgba(119,67,43,.44)'); rust.addColorStop(1, 'rgba(119,67,43,0)');
+        g.fillStyle = rust; g.fillRect(x - r, y - r, 2 * r, 2 * r);
+      }
+    });
+    lumleyRoofMat = new THREE.MeshLambertMaterial({ map: roofTex });
+    // Shared plaster maps add weather and colour variation without a mesh per stain.
+    // The base colours echo painted concrete, dust and coastal humidity in Lumley.
+    ['#a98e70', '#c1aa8b', '#9f9b86'].forEach((base, variant) => {
+      const wallTex = kit.canvasTex(256, 256, (g, w, h) => {
+        g.fillStyle = base; g.fillRect(0, 0, w, h);
+        const shade = g.createLinearGradient(0, 0, 0, h);
+        shade.addColorStop(0, 'rgba(255,246,221,.13)');
+        shade.addColorStop(.58, 'rgba(95,77,62,.02)');
+        shade.addColorStop(1, 'rgba(56,52,46,.25)');
+        g.fillStyle = shade; g.fillRect(0, 0, w, h);
+        let seed = 317 + variant * 541;
+        const next = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+        for (let i = 0; i < 1500; i++) {
+          const x = next() * w, y = next() * h, size = .4 + next() * 2.1;
+          g.fillStyle = next() > .48 ? 'rgba(255,244,222,.13)' : 'rgba(58,53,45,.12)';
+          g.fillRect(x, y, size, size * (1 + next()));
+        }
+        for (let i = 0; i < 22; i++) {
+          const x = next() * w, y = next() * h;
+          const stain = g.createRadialGradient(x, y, 0, x, y, 5 + next() * 21);
+          stain.addColorStop(0, 'rgba(66,62,54,.12)');
+          stain.addColorStop(1, 'rgba(66,62,54,0)');
+          g.fillStyle = stain; g.fillRect(x - 25, y - 25, 50, 50);
+        }
+        g.strokeStyle = 'rgba(65,58,49,.16)'; g.lineWidth = .7;
+        for (let i = 0; i < 5; i++) {
+          const x = next() * w, y = next() * h;
+          g.beginPath(); g.moveTo(x, y); g.lineTo(x + next() * 18 - 9, y + 10 + next() * 25); g.stroke();
+        }
+      });
+      lumleyWallMats.push(new THREE.MeshLambertMaterial({ map: wallTex }));
+    });
     SIGN_ROWS.forEach((name, i) => {
       const geo = new THREE.PlaneGeometry(1, 1);
       const uv = geo.attributes.uv, vTop = 1 - i / n, vBot = 1 - (i + 1) / n;
@@ -350,16 +422,38 @@ window.PODA.districts = window.PODA.districts || {};
     fill(group, kit, ctx) {
       ensureTex(kit);
       const { add, G, pick, rand, randi } = kit;
-      const shopMat = shopSignMat(pick(kit.shopTex)); // one shop-sign texture for the whole chunk
       for (const side of [-1, 1]) {
         let z = -rand(0.5, 2.5);
         while (z > -kit.CH + 2) {
           const h = rand(3, 7.5);
-          add(group, G.box, pick([0x8a5a3a, 0xc9b6a0, 0xb08a5a]), 4.4, h, 4.6, side * 12.6, h / 2, z, true);
-          add(group, G.box, h > 5 ? 0xffffff : pick(ZINC), 4.8, h > 5 ? 0.9 : 0.3, 5.0, side * 12.6, h + (h > 5 ? 0.3 : 0.15), z);
-          if (h > 5) add(group, G.box, 0xffffff, 0.08, 0.7, 4.4, side * (12.6 - 2.4), h * 0.72, z); // balustrade veranda band
-          const sign = new THREE.Mesh(SHOP_SIGN_GEO, shopMat);
-          sign.position.set(side * (12.6 - 2.33), 2.6, z); sign.rotation.y = -side * Math.PI / 2; group.add(sign);
+          const bx = rand(12.4, 13.8), face = side * (bx - 2.24);
+          add(group, G.box, pick(lumleyWallMats), 4.4, h, 4.6, side * bx, h / 2, z, true);
+          add(group, G.box, h > 5 ? 0xa7a296 : lumleyRoofMat, 4.8, h > 5 ? 0.5 : 0.3, 5.0, side * bx, h + (h > 5 ? 0.25 : 0.15), z);
+          add(group, G.box, 0x777568, 4.85, .09, 5.02, side * bx, h + .05, z); // shadow under eave
+          if (h > 5) {
+            add(group, G.box, 0x716a5e, 0.13, 0.58, 4.45, face - side * .24, h * .72, z); // veranda rail
+            for (const dz of [-1.85, 0, 1.85]) add(group, G.box, 0x8c8373, .12, .68, .1, face - side * .28, h * .72, z + dz);
+          }
+          // A recessed shutter, upper windows and an uneven zinc awning give each frontage depth.
+          add(group, G.box, 0x302d27, .09, 1.82, 2.12, face - side * .02, 1.08, z); // recessed opening
+          add(group, G.box, lumleyShutterMat, .07, 1.65, 1.94, face - side * .09, 1.07, z);
+          add(group, G.box, 0x6d695e, .12, 1.87, .1, face - side * .13, 1.08, z - 1.04);
+          add(group, G.box, 0x6d695e, .12, 1.87, .1, face - side * .13, 1.08, z + 1.04);
+          if (h > 4.4) for (const dz of [-1.2, 1.2]) {
+            add(group, G.box, 0x394746, .075, .95, .75, face - side * .04, h - 1.65, z + dz);
+            add(group, G.box, 0xc2b9a1, .09, .12, .9, face - side * .09, h - 2.17, z + dz);
+          }
+          for (let i = 0; i < 3; i++) {
+            const stainY = rand(.4, h - .4), stainZ = z + rand(-2, 2);
+            add(group, G.box, pick([0x8b806e, 0x988976, 0xa79b86]), .02, rand(.12, .52), rand(.18, .7), face - side * .07, stainY, stainZ);
+          }
+          add(group, G.box, lumleyRoofMat, 1.3, .1, 3.6, face - side * .45, 2.25, z + rand(-.3, .3));
+          if (Math.random() < .6) {
+            add(group, G.box, 0x8b765b, .65, .55, .7, face - side * .8, .28, z - 1.3);
+            add(group, G.box, 0x6a7167, .58, .4, .55, face - side * .9, .2, z - .55);
+          }
+          const sign = new THREE.Mesh(pick(lumleyShopGeos), lumleyShopMat);
+          sign.position.set(face - side * .09, 2.68, z); sign.rotation.y = -side * Math.PI / 2; group.add(sign);
           z -= rand(5.5, 7.5);
         }
         for (let i = randi(2, 3); i > 0; i--) stall(group, kit, side * rand(9.6, 10.6), rand(-kit.CH + 3, -3));
