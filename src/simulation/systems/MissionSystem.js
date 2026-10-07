@@ -7,7 +7,7 @@
   const MISSIONS = Object.freeze([
     { id: 'deliver-ten', label: 'Deliver 10 passengers', target: 10 },
     { id: 'perfect-five', label: 'Make 5 perfect stops', target: 5 },
-    { id: 'finish-shift', label: 'Finish the FBC shift', target: 1 },
+    { id: 'finish-shift', label: 'Finish a route', target: 1 },
   ]);
 
   return class MissionSystem {

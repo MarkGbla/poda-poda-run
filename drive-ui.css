@@ -178,3 +178,32 @@ body.hud-three #touch button:focus-visible { opacity: 1; }
   #touch button { width:76px;height:76px;opacity:.8; }
   #radio { bottom:105px; }
 }
+/* Selection and results remain scrollable on short portrait and landscape screens. */
+#playerGarage .plate-body { max-height: min(64vh, 660px); overflow-y:auto; }
+#rideStats,#routeDescription {font-size:13px;line-height:1.5;margin:8px 0 14px;}
+#playerGarage select,#driverName {width:100%;min-height:44px;border-radius:9px;padding:10px;background:#fff9e9;color:#172e26;border:1px solid #9eaa94;font:inherit;}
+#playerGarage label {display:block;font-weight:650;margin:8px 0;}
+#over .plate {max-height:94dvh;overflow:auto;}
+#shareStatus {font-size:13px;min-height:1em;}
+#seats {max-width:180px;}
+@media(max-width:600px){#playerGarage .plate-body{max-height:51dvh;}#playerGarage .plate-top h1{font-size:30px;}#rideStats,#routeDescription{font-size:12px;margin:6px 0;}#over .stats{gap:8px;}#over h1{font-size:36px;}#title .controls{display:none;}}
+html,body {touch-action:auto;}
+#c {touch-action:none;outline:none;}
+#playerGarage .garage-tabs {display:flex;flex-wrap:wrap;gap:5px;margin:12px 0;}
+#playerGarage .garage-tabs button {font-size:12px;min-height:44px;padding:8px;flex:1;}
+#playerGarage .plate-body > .row {position:sticky;bottom:-14px;background:#172c31;padding:10px 0;margin-top:12px;z-index:1;}
+@media(max-width:700px){#playerGarage .plate {max-height:51dvh;}#playerGarage .plate-body{max-height:39dvh;}#playerGarage .plate-top h1{font-size:24px;}}
+@media(max-height:520px){
+ .screen{padding:12px;}
+ #title{padding:12px 24px;}
+ #title .plate{max-height:94dvh;overflow-y:auto;width:min(420px,52vw);}
+ #title .plate h1{font-size:34px;}
+ #title .plate-top{padding-bottom:6px;}
+ #title #tagline,#title .proto{display:none;}
+ #title .plate-body{padding-top:8px;}
+ #title .row{grid-template-columns:1fr 1fr;gap:6px;}
+ #title .row button{padding:9px;font-size:14px;min-height:44px;}
+ #title #startBtn{grid-column:1/-1;padding:10px;}
+ #playerGarage .plate{max-height:94dvh;}
+ #playerGarage .plate-body{max-height:65dvh;}
+}

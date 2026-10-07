@@ -2,12 +2,12 @@ export function createWorkshop(K, street, bake) {
   const {THREE:T,G,add}=K,g=new T.Group();
   street.worn(g,13,16,.18,18,0,-.12,0);
   for(const x of [-6.5,6.5]) {
-    street.worn(g,13,.3,6,17,x,2.8,0);
+    // Open-sided workshop keeps every vehicle and orbit angle visible.
     for(const z of [-7,0,7]){add(g,G.box,0x326075,.28,6,.32,x,2.9,z);add(g,G.box,0x958873,13.4,.2,.16,0,5.9,z);}
   }
   // Rear wall; the front is open to the live Freetown scene.
-  street.worn(g,13,13.2,6,.22,0,2.8,8.3);
-  street.panel(g,2,6,1.2,0,4.1,8.15,Math.PI);
+  street.worn(g,13,20,6,.22,0,2.8,15);
+  street.panel(g,2,6,1.2,0,4.1,14.85,Math.PI);
   for(const x of [-2,2])add(g,G.box,0xb99439,.12,.018,8,x,.005,0);
   add(g,G.box,0x343b38,1.4,.02,5.5,0,.005,0);
   const tyre=new T.TorusGeometry(.46,.17,6,14);

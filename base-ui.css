@@ -1,0 +1,179 @@
+:root {
+    color-scheme: dark;
+    --ink: #0f1d26;
+    --ink-2: #1a2e3a;
+    --cream: #f6ecd6;
+    --green: #1eb53a;
+    --blue: #0072c6;
+    --sun: #ffc23d;
+    --laterite: #c0562f;
+    --red: #d8333a;
+    --display: "Bungee", "Impact", "Arial Black", sans-serif;
+    --body: "Outfit", "Segoe UI", system-ui, sans-serif;
+  }
+  [hidden] { display: none !important; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; overflow: hidden; background: var(--ink); color: var(--cream);
+    font-family: var(--body); -webkit-user-select: none; user-select: none;
+    touch-action: none; -webkit-tap-highlight-color: transparent;
+  }
+  #app { position: fixed; inset: 0; }
+  #c { display: block; width: 100%; height: 100%; }
+
+  /* ---------- HUD ---------- */
+  #hud {
+    position: absolute; left: 0; right: 0; top: 0;
+    padding: calc(env(safe-area-inset-top, 0px) + 12px) 16px 0;
+    display: grid; grid-template-columns: 1fr auto 1fr; gap: 12px; align-items: start;
+    pointer-events: none;
+  }
+  .chip {
+    background: color-mix(in srgb, var(--ink) 82%, transparent);
+    border: 2px solid var(--ink); border-radius: 10px;
+    padding: 6px 12px; box-shadow: 0 3px 0 rgba(0,0,0,.35);
+  }
+  .lbl { display: block; font-size: 10px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; opacity: .7; }
+  .big { font-family: var(--display); font-size: 22px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .hud-l, .hud-r { display: flex; flex-direction: column; gap: 6px; }
+  .hud-r { align-items: end; }
+  .hud-l { align-items: start; }
+  #cashChip .big { color: var(--sun); }
+  .sub { font-size: 13px; font-weight: 600; opacity: .85; font-variant-numeric: tabular-nums; }
+
+  #stopCard {
+    min-width: 220px; text-align: center; background: var(--green); color: #fff;
+    border: 3px solid var(--ink); border-radius: 12px; padding: 6px 14px 8px;
+    box-shadow: 0 4px 0 var(--ink);
+  }
+  #stopCard .lbl { opacity: .9; }
+  #stopName { font-family: var(--display); font-size: 20px; line-height: 1.15; text-wrap: balance; }
+  #stopMeta { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; font-weight: 800; margin-top: 4px; font-variant-numeric: tabular-nums; }
+  #stopBar { height: 6px; background: rgba(0,0,0,.25); border-radius: 3px; overflow: hidden; margin-top: 4px; }
+  #stopBar i { display: block; height: 100%; width: 0; background: var(--sun); }
+
+  #seats { display: grid; grid-template-columns: repeat(7, 9px); gap: 3px; margin-top: 4px; }
+  #seats i { width: 9px; height: 9px; border-radius: 2px; background: rgba(246,236,214,.18); }
+  #seats i.on { background: var(--cream); }
+  #seats i.drop { background: var(--sun); }
+  #body { display: flex; gap: 4px; }
+  #body i { width: 22px; height: 8px; border-radius: 4px; background: var(--green); }
+  #body i.off { background: var(--red); }
+
+  #hint {
+    position: absolute; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 112px); transform: translateX(-50%);
+    background: var(--sun); color: var(--ink); font-weight: 800; font-size: 15px;
+    padding: 8px 16px; border-radius: 999px; border: 3px solid var(--ink); white-space: nowrap;
+    box-shadow: 0 4px 0 var(--ink); pointer-events: none;
+  }
+  #hint kbd { font-family: var(--body); background: var(--ink); color: var(--sun); border-radius: 5px; padding: 0 6px; margin: 0 2px; }
+
+  #pops { position: absolute; left: 0; right: 0; top: 34%; display: flex; flex-direction: column; align-items: center; gap: 8px; pointer-events: none; }
+  .pop {
+    font-family: var(--display); font-size: clamp(18px, 4.4vw, 30px); color: var(--cream);
+    -webkit-text-stroke: 1.5px var(--ink); paint-order: stroke fill;
+    text-shadow: 0 3px 0 var(--ink); text-align: center; padding-inline: 16px;
+    animation: pop 1.9s cubic-bezier(.2,.9,.3,1.2) forwards;
+  }
+  .pop.money { color: var(--sun); }
+  .pop.bad { color: #ff8a80; }
+  .pop.krio { font-family: var(--body); font-weight: 800; font-size: clamp(16px, 3.6vw, 22px); -webkit-text-stroke: 0;
+    background: var(--cream); color: var(--ink); border: 3px solid var(--ink); border-radius: 16px 16px 16px 4px;
+    padding: 6px 14px; text-shadow: none; box-shadow: 0 4px 0 var(--ink); max-width: min(90vw, 460px); }
+  .pop.krio small { display: block; font-weight: 600; font-size: 12px; opacity: .65; }
+  @keyframes pop {
+    0% { transform: scale(.6) translateY(10px); opacity: 0; }
+    12% { transform: scale(1) translateY(0); opacity: 1; }
+    80% { opacity: 1; }
+    100% { transform: translateY(-24px); opacity: 0; }
+  }
+
+  #touch {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    padding: 0 16px calc(env(safe-area-inset-bottom, 0px) + 18px);
+    display: flex; justify-content: space-between; pointer-events: none;
+  }
+  #touch button {
+    pointer-events: auto; font-family: var(--display); font-size: 16px; letter-spacing: .04em;
+    width: 92px; height: 72px; border-radius: 16px; border: 3px solid var(--ink);
+    box-shadow: 0 5px 0 var(--ink); cursor: pointer; touch-action: none;
+  }
+  #touch button:active, #touch button.down { transform: translateY(4px); box-shadow: 0 1px 0 var(--ink); }
+  #hornBtn { background: var(--cream); color: var(--ink); }
+  #brakeBtn { background: var(--red); color: #fff; }
+  #gasBtn { background: var(--green); color: #fff; }
+  .pedals { display: flex; gap: 10px; }
+  #touch button:focus-visible, .btn:focus-visible { outline: 3px solid var(--sun); outline-offset: 3px; }
+  @media (hover: hover) and (pointer: fine) { #touch { display: none; } #hint { bottom: calc(env(safe-area-inset-bottom, 0px) + 32px); } }
+
+  #radio {
+    position: absolute; right: 16px; bottom: calc(env(safe-area-inset-bottom, 0px) + 104px);
+    display: flex; gap: 6px; max-width: calc(100% - 32px);
+  }
+  #radio button {
+    font: 800 12px var(--body); color: var(--cream); background: color-mix(in srgb, var(--ink) 80%, transparent);
+    border: 2px solid var(--ink); border-radius: 8px; padding: 6px 10px; cursor: pointer;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 240px;
+  }
+  #radio button:focus-visible { outline: 3px solid var(--sun); outline-offset: 2px; }
+  #auxBtn b { color: var(--sun); }
+  @media (hover: hover) and (pointer: fine) { #radio { bottom: calc(env(safe-area-inset-bottom, 0px) + 16px); } }
+
+  /* ---------- Screens ---------- */
+  .screen {
+    position: absolute; inset: 0; display: grid; place-items: center; padding: 16px;
+    background: linear-gradient(180deg, rgba(15,29,38,.15), rgba(15,29,38,.72) 70%);
+  }
+  .plate {
+    width: min(520px, 100%); background: var(--cream); color: var(--ink);
+    border: 4px solid var(--ink); border-radius: 18px; overflow: hidden;
+    box-shadow: 0 10px 0 var(--ink), 0 30px 60px rgba(0,0,0,.4);
+  }
+  .plate-top { background: var(--ink); color: var(--cream); padding: 18px 22px 14px; position: relative; }
+  .plate-top .eyebrow { font-weight: 800; font-size: 12px; letter-spacing: .16em; text-transform: uppercase; color: var(--sun); }
+  .plate h1 {
+    margin: 4px 0 0; font-family: var(--display); font-weight: 400; font-size: clamp(38px, 9vw, 58px); line-height: .95;
+    color: var(--cream); text-shadow: 3px 3px 0 var(--red);
+  }
+  .flag { display: grid; grid-template-rows: repeat(3, 8px); }
+  .flag i:nth-child(1) { background: var(--green); } .flag i:nth-child(2) { background: #fff; } .flag i:nth-child(3) { background: var(--blue); }
+  .plate-body { padding: 18px 22px 22px; display: flex; flex-direction: column; gap: 14px; }
+  .plate-body p { margin: 0; font-size: 16px; line-height: 1.45; max-width: 62ch; }
+  .controls { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; font-size: 14px; align-items: center; }
+  .controls kbd {
+    font: 800 12px var(--body); background: var(--ink); color: var(--cream); border-radius: 6px; padding: 3px 7px;
+    justify-self: start; white-space: nowrap;
+  }
+  .btn {
+    font-family: var(--display); font-size: 20px; padding: 14px 18px; border-radius: 14px; cursor: pointer;
+    background: var(--green); color: #fff; border: 3px solid var(--ink); box-shadow: 0 5px 0 var(--ink);
+  }
+  .btn:active { transform: translateY(4px); box-shadow: 0 1px 0 var(--ink); }
+  .row { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+  .best { font-size: 13px; font-weight: 600; opacity: .7; font-variant-numeric: tabular-nums; }
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .stats div { background: #efe0bf; border-radius: 10px; padding: 8px 12px; }
+  .stats b { font-family: var(--display); font-weight: 400; font-size: 22px; display: block; font-variant-numeric: tabular-nums; }
+  .stats span { font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; opacity: .65; }
+  .ticket-line { border-top: 3px dashed rgba(15,29,38,.25); }
+  .proto { font-size: 12px; opacity: .6; }
+  #pauseBtn { font: 800 12px var(--body); color: var(--cream); background: var(--ink-2); border: 2px solid var(--ink); border-radius: 8px; padding: 6px 10px; cursor: pointer; }
+  #pause .plate { max-width: 440px; }
+  #leaderboard { z-index: 20; }
+  #leaderboard .plate { max-width: 480px; }
+  #playerGarage { z-index: 12; place-items: center start; pointer-events: none; }
+  #playerGarage .plate { width: min(360px, 100%); pointer-events: auto; }
+  #playerGarage label { display: grid; gap: 5px; font-weight: 800; }
+  #playerGarage select { font: 700 15px var(--body); padding: 9px; border: 2px solid var(--ink); border-radius: 8px; }
+  @media (max-width: 700px) { #playerGarage { place-items: end center; } #playerGarage .plate-body { gap: 8px; } }
+  #leaderPeriod { font: 800 14px var(--body); padding: 8px; border-radius: 8px; }
+  #leaderEntries { margin: 0; padding-left: 24px; max-height: 45vh; overflow: auto; }
+  #leaderEntries li { padding: 5px 0; font-weight: 800; }
+  .secondaryBtn { font: 800 14px var(--body); padding: 10px 12px; border: 2px solid var(--ink); border-radius: 10px; background: var(--cream); color: var(--ink); cursor: pointer; }
+
+  @media (max-width: 560px) {
+    #hud { grid-template-columns: 1fr 1fr; }
+    #stopCard { grid-column: 1 / -1; grid-row: 2; min-width: 0; justify-self: center; width: min(280px, 100%); }
+    .big { font-size: 18px; }
+    #stopName { font-size: 17px; }
+  }

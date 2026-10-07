@@ -236,7 +236,9 @@ window.PODA.districts = window.PODA.districts || {};
     init(kit);
     opt = opt || {};
     const g = new T.Group();
-    const L = LIVERIES.find(l => l.id === opt.livery) || (opt.scheme === K.SCHEMES[0] ? LIVERIES[0] : K.pick(LIVERIES));
+    const baseLivery = LIVERIES.find(l => l.id === opt.livery) || (opt.scheme === K.SCHEMES[0] ? LIVERIES[0] : K.pick(LIVERIES));
+    const paint={ivory:0xe4d5b3,green:0x397550,blue:0x426f91,ochre:0xc7a452}[opt.paint];
+    const L=paint?{...baseLivery,id:baseLivery.id+'_'+opt.paint,body:paint}:baseLivery;
     const crew = !!opt.withCrew;
 
     mesh(g, extrudeX('podaBody', PODA_PTS, PD, PB), L.body, 0, 0, 0, true);
@@ -275,12 +277,13 @@ window.PODA.districts = window.PODA.districts || {};
     box(g, 0x3b3e42, 2.0, 0.22, 0.16, 0, 0.45, 2.74);
     box(g, 0xf4f4f0, 0.5, 0.13, 0.02, 0, 0.75, 2.71);
     // wheels: steel rims with hub caps
-    for (const [x, z] of [[0.87, -1.75], [-0.87, -1.75], [0.87, 1.55], [-0.87, 1.55]]) wheel(g, x, 0.36, z, 0.36, 0.26, 0.21, 0xa9adb1);
+    for (const [x, z] of [[0.87, -1.75], [-0.87, -1.75], [0.87, 1.55], [-0.87, 1.55]]) wheel(g, x, 0.36, z, 0.36, 0.26, 0.21, opt.wheelStyle==='chrome'?0xf0f3fa:opt.wheelStyle==='dark'?0x25282d:0xa9adb1);
+    if(opt.bodyTrim==='guard'){box(g,0x494f4f,1.9,.1,.14,0,.68,-2.9);for(const x of [-.65,.65])box(g,0x494f4f,.1,.6,.14,x,.7,-2.9);}
     // roof rack and load
     const ry = 2.58;
-    for (const s of [1, -1]) box(g, 0x2a2a2a, 0.06, 0.12, 3.4, s * 0.86, ry + 0.06, 0.85);
-    for (const z of [-0.7, 0.85, 2.4]) box(g, 0x2a2a2a, 1.78, 0.05, 0.06, 0, ry + 0.02, z);
-    const slots = [-0.4, 0.5, 1.4, 2.2], n = crew ? 2 : K.randi(2, 4);
+    if(opt.roofRack!=='none')for (const s of [1, -1]) box(g, 0x2a2a2a, 0.06, 0.12, 3.4, s * 0.86, ry + 0.06, 0.85);
+    if(opt.roofRack!=='none')for (const z of [-0.7, 0.85, 2.4]) box(g, 0x2a2a2a, 1.78, 0.05, 0.06, 0, ry + 0.02, z);
+    const slots = [-0.4, 0.5, 1.4, 2.2], n = opt.roofRack==='none'||opt.roofCargo==='empty'?0:crew ? 2 : K.randi(2, 4);
     K.pick([0, 1]) && slots.reverse();
     for (let i = 0; i < n; i++) K.pick(CARGO)(g, K.rand(-0.25, 0.25), ry + 0.04, slots[i]);
 

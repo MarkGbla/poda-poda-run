@@ -1,3 +1,12 @@
+import '../base-ui.css';
+import '../drive-ui.css';
+import publicDomain from '../CNAME?raw';
+import './simulation/systems/RoadContactSystem.js';
+import { registerEasternDistricts } from './data/EasternDistricts.js';
+import { createScorePoster } from './ui/ScorePoster.js';
+import './simulation/systems/TrafficAI.js';
+import './data/GameConfig.js';
+import './simulation/systems/JumpSystem.js';
 import { createWorkshop } from './assets/props/workshop.js';
 import { createRoleDecorator } from './assets/people/roles.js';
 import { createBuildingFactory } from './assets/buildings/buildingFactory.js';
@@ -10,7 +19,6 @@ import '../districts-west.js';
 import '../districts-east.js';
 import '../people.js';
 import '../engine-sound.js';
-import '../town-model.js';
 
 import './simulation/RunRules.js';
 import './engine/GameStateMachine.js';
@@ -29,6 +37,7 @@ import './services/ApiClient.js';
 (() => {
 'use strict';
 const THREE = window.THREE;
+const gameURL = 'https://' + publicDomain.trim() + '/';
 
 /* ================================================================
    Local flavour — everything Freetown lives here
@@ -70,7 +79,7 @@ const fmtLe = n => 'Le ' + Math.round(n).toLocaleString('en-US');
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const store = {
   get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
-  set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
+  set(k, v) { try { localStorage.setItem(k, v); return true; } catch (e) { return false; } },
 };
 
 /* ================================================================
@@ -282,7 +291,7 @@ function pooled(key, factory) { return trafficPool.acquire(key, factory); }
 function releaseObstacle(o) { if (o.poolKey) trafficPool.release(o); else drop(o.g); }
 const kit = {};   // filled at boot; handed to every plug-in
 function makePerson(opt = {}) {
-  if (PLUG.people && PLUG.people.make) { const p = PLUG.people.make(kit, roles ? roles.options(opt) : opt); return roles ? roles.decorate(p, opt) : p; }
+  if (PLUG.people && PLUG.people.make) { const p = PLUG.people.make(kit, roles ? roles.options(opt) : opt); p.userData.decorativePerson=true; return roles ? roles.decorate(p, opt) : p; }
   return builtinPerson(opt);
 }
 function builtinPerson(opt = {}) {
@@ -316,7 +325,7 @@ const LIVERIES = [
 let selectedLivery = LIVERIES.some(([id]) => id === store.get('poda-livery')) ? store.get('poda-livery') : 'bluelower';
 let selectedSlogan = DATA.slogans.includes(store.get('poda-slogan')) ? store.get('poda-slogan') : DATA.slogans[0];
 function makePoda(slogan, routeText, scheme, withCrew, livery) {
-  if (PLUG.vehicles.podapoda) return PLUG.vehicles.podapoda(kit, { slogan, routeText, scheme, withCrew, livery });
+  if (PLUG.vehicles.podapoda) return PLUG.vehicles.podapoda(kit, { slogan, routeText, scheme, withCrew, livery, roofCargo:withCrew?store.get('poda-cargo'):null, wheelStyle:withCrew?store.get('poda-wheels'):null, paint:withCrew?store.get('poda-paint'):null, roofRack:withCrew?store.get('poda-rack'):null, bodyTrim:withCrew?store.get('poda-trim'):null });
   return builtinPoda(slogan, routeText, scheme, withCrew);
 }
 function builtinPoda(slogan, routeText, scheme, withCrew) {
@@ -578,6 +587,7 @@ function fillChunk(ch) {
     for (const dz of [-.18, 0, .18]) add(c, G.box, 0x252b28, .22, .003, .035, x, .046, z + dz);
   }
   if (PLUG.people) PLUG.people.lodDefault = undefined;
+  const trimmed=[];c.traverse(o=>{if(o.userData.decorativePerson&&Math.random()>qualityManager.budget.crowd)trimmed.push(o);});for(const person of trimmed)person.parent?.remove(person);
   bake(c);
 }
 
@@ -631,6 +641,7 @@ function bake(root, cast = false) {
 }
 function drop(obj) {
   world.remove(obj);
+  for(const texture of obj.userData.ownedTextures||[])texture.dispose();
   obj.traverse(m => { if (m.userData.baked) m.geometry.dispose(); });
 }
 function defaultFill(c) {
@@ -657,7 +668,11 @@ function defaultFill(c) {
    Game state
    ================================================================ */
 const RULES = window.PODA_RUN_RULES;
-const CAP = RULES.CAPACITY;
+const CONFIG = window.PODA_CONFIG;
+let vehicleId = CONFIG.vehicles[store.get('poda-vehicle')] ? store.get('poda-vehicle') : 'poda';
+let routeId = CONFIG.routes[store.get('poda-route')] ? store.get('poda-route') : 'western';
+let CAP = CONFIG.vehicles[vehicleId].capacity;
+DATA.route = CONFIG.routes[routeId].stops;
 const S = {};
 let player, apprentice, contactShadow, workshop;
 let transitionTime = 0, transitionPose = null, garageCategory = 'paint';
@@ -667,7 +682,7 @@ const clock = new window.PODA_GameClock();
 const events = new window.PODA_EventBus();
 const missions = new window.PODA_MissionSystem(events, store);
 const api = new window.PODA_ApiClient(store, fetch.bind(window), () => crypto.randomUUID());
-let runSerial = 0;
+let runSerial = 0, lastResult=null, resultVehicle=null, resultRoute=null, resultModel=null;
 let garageReturnState = 'attract';
 let garageHidden = [];
 let state = stateMachine.current, demo = location.hash === '#demo' || new URLSearchParams(location.search).has('district');
@@ -684,19 +699,20 @@ function resetRun() {
   if (stopObj) drop(stopObj.g);
   obstacles = []; coins = []; boosts = []; debris = []; stopObj = null;
   Object.assign(S, {
+    vehicle: CONFIG.vehicles[vehicleId], jumpY:0, jumpVelocity:0, jumpCooldown:0, bump:0,
     dist: 0, speed: 12, lane: 2, x: LANES[2], cash: 0, coins: 0, dropped: 0, stops: 0,
     perfectStops: 0, missedStops: 0, collisions: 0, lost: 0, completed: false,
     stopIdx: 1, toStop: 260, legLen: 260, nextRow: 60,
     pax: [], hitAt: -99, invuln: 0, dwell: 0, dwellPlan: null, shake: 0, magnet: 0, time: 0, over: false,
   });
   // start half-full; each passenger knows where they're going
-  for (let i = 0; i < 8; i++) S.pax.push(randi(0, 2));
+  for (let i = 0; i < Math.ceil(CAP / 2); i++) S.pax.push(randi(0, 2));
   for (let z = -45; z > -200; z -= 36) spawnRow(z);
   renderSeats(); renderBody();
 }
 
 /* ---------- Stops ---------- */
-function stopName(i) { return RULES.stopName(i) || DATA.route[DATA.route.length - 1]; }
+function stopName(i) { return DATA.route[i] || DATA.route[DATA.route.length - 1]; }
 function spawnStop() {
   const g = new THREE.Group();
   const sx = ROAD_HALF + 1.7;
@@ -712,13 +728,14 @@ function spawnStop() {
     c.strokeStyle = '#ffc23d'; c.lineWidth = 12; c.strokeRect(6, 6, w - 12, h - 12);
     c.lineWidth = 6; for (let y = -w; y < h; y += 40) { c.beginPath(); c.moveTo(0, y); c.lineTo(w, y + w); c.stroke(); }
   });
+  g.userData.ownedTextures=[zone,sign.material.map];
   const zm = new THREE.Mesh(new THREE.PlaneGeometry(3.0, 16), new THREE.MeshBasicMaterial({ map: zone, transparent: true, opacity: 0.85, depthWrite: false }));
   zm.rotation.x = -Math.PI / 2; zm.position.set(LANES[2], 0.03, 0); g.add(zm);
   const d0 = PLUG.districts[forcedDistrict || stopName(S.stopIdx)];
   if (d0 && d0.landmark) d0.landmark(g, kit, { name: stopName(S.stopIdx) });
   bake(g);
   const waiting = [];
-  const n = randi(3, 7);
+  const n = Math.min(CAP, randi(3, CAP===30?15:7));
   for (let i = 0; i < n; i++) {
     const p = makePerson({ cast: true }); p.position.set(sx + rand(-0.6, 0.6), 0.2, rand(-4, 4)); p.rotation.y = -Math.PI / 2 + rand(-0.4, 0.4);
     g.add(p); waiting.push(p);
@@ -756,9 +773,9 @@ function finishDwell() {
   sfx('chime');
 }
 function advanceStop() {
-  if (RULES.isFinalStop(S.stopIdx)) { endRun(true); return; }
+  if (S.stopIdx === DATA.route.length - 1) { endRun(true); return; }
   S.pax = window.PODA_PassengerSystem.advanceDestinations(S.pax);
-  S.stopIdx = RULES.nextStopIndex(S.stopIdx);
+  S.stopIdx = S.stopIdx + 1;
   S.legLen = S.toStop = rand(420, 560);
 }
 function missStop() {
@@ -795,7 +812,10 @@ function spawnRow(z) {
   for (const lane of lanes) {
     if (placed >= n) break;
     if (lane === 2 && Math.abs(z - stopZ) < 55) continue;
-    const r = Math.random();
+    if(obstacles.some(o=>Math.abs(o.z-z)<22&&Math.abs(o.x-LANES[lane])<3))continue;
+    const district=districtFor(-z);
+    const freightDistrict=['Cline Town','Wellington','Kissy'].includes(district);
+    const r = freightDistrict && Math.random()<.25 ? .65 : Math.random();
     let o, speed = LANE_SPEED[lane], cross = 0;
     if (r < 0.18) o = pooled('taxi', makeCar);
     else if (r < 0.34) o = pooled('kekeh', makeKekeh);
@@ -803,13 +823,15 @@ function spawnRow(z) {
     else if (r < 0.56) o = pooled('poda', makeTrafficPoda);
     else if (r < 0.62) { o = lane === 2 ? pooled('kekeh', makeKekeh) : pooled('waka', makeWakaFine); speed = 4; }
     else if (r < 0.70) { const type=pick(['box','flatbed','tipper','tanker','container','coach']), variant=randi(0,2); o=pooled(type+variant,()=>freight.make({type,variant})); speed=4; }
+    else if(r<.73) {const g=new THREE.Group();streetAssets.roadworks(g,0,0);o={g,wid:2.1,len:8,static:true};speed=0;}
     else if (r < 0.74) { o = makeGoat(); speed = 0; cross = 1; }
     else if (r < 0.84) { o = makeHawker(); speed = 0; cross = 1; }
+    else if(r<.89){const g=new THREE.Group();add(g,G.box,0xe1a242,1.6,.35,.5,0,.18,0);o={g,wid:1.6,len:.5,static:true,jumpable:true};speed=0;}
     else { const v=randi(0,4); o=pooled('pothole'+v,()=>streetAssets.pothole(v)); speed=0; }
-    o.lane = lane; o.speed = speed; o.z = z; o.x = LANES[lane];
+    o.cruise=speed; o.weave=false; o.lane = lane; o.speed = speed; o.z = z; o.x = LANES[lane];
     if (cross) {
       const dir = Math.random() < 0.5 ? -1 : 1;
-      o.vx = dir * rand(0.9, 1.5); o.x = LANES[lane] - dir * 2.2; o.cross = true;
+      o.vx = dir * rand(0.9, 1.5); o.crossVelocity=o.vx; o.x = LANES[lane] - dir * 2.2; o.cross = true;
       o.g.rotation.y = heading(o);
     } else if (!o.poolKey && !o.flat && !o.person) bake(o.g, true);
     o.g.position.set(o.x, 0, z);
@@ -833,6 +855,10 @@ function spawnRow(z) {
 }
 
 function hit(o) {
+  if (o.flat) {
+    if(!window.PODA_RoadContact.pothole(S,o,reduceMotion))return;
+    sfx('thud'); events.emit('pothole:hit', {distance:S.dist}); pop('Pothole · tek tem!'); return;
+  }
   if (S.invuln > 0 || o.dead) return;
   o.dead = true;
   const side = o.x >= S.x ? 1 : -1;
@@ -863,6 +889,7 @@ function laneTo(d) {
   S.lane = clamp(S.lane + d, 0, 2);
 }
 addEventListener('keydown', e => {
+  if(e.target?.matches?.('input,select,textarea,button'))return;
   if (e.repeat && !['ArrowDown', 's', 'S', ' ', 'ArrowUp', 'w', 'W'].includes(e.key)) return;
   if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') {
     if (state === 'play' || state === 'paused') inputManager.command('PAUSE');
@@ -871,8 +898,9 @@ addEventListener('keydown', e => {
   if (state === 'play') {
     if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') inputManager.command('MOVE_LEFT');
     else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') inputManager.command('MOVE_RIGHT');
-    else if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S' || e.key === ' ') { inputManager.command('BRAKE'); e.preventDefault(); }
+    else if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S' ) { inputManager.command('BRAKE'); e.preventDefault(); }
     else if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') { inputManager.command('ACCELERATE'); e.preventDefault(); }
+    else if (e.key === ' ' && !e.repeat) { e.preventDefault(); jump(); }
     else if (e.key === 'h' || e.key === 'H') inputManager.command('HORN');
     else if (e.key === 'm' || e.key === 'M') inputManager.command('MUTE');
   } else if (state === 'attract' || state === 'over' || state === 'complete') {
@@ -883,19 +911,23 @@ addEventListener('keyup', e => {
   if (['ArrowDown', 's', 'S', ' '].includes(e.key)) inputManager.command('BRAKE', false);
   if (['ArrowUp', 'w', 'W'].includes(e.key)) inputManager.command('ACCELERATE', false);
 });
+function jump() { if(state==='play' && !demo && window.PODA_JumpSystem.start(S)) {events.emit('jump:start',{});tone(220,.12,'sine',.08,420);} }
 let touch0 = null;
-canvas.addEventListener('pointerdown', e => { touch0 = { x: e.clientX, y: e.clientY }; });
+canvas.addEventListener('pointerdown', e => { if(e.isPrimary && !input.brake && !input.gas) {canvas.setPointerCapture(e.pointerId);touch0 = { x: e.clientX, y: e.clientY, time:performance.now(), id:e.pointerId };} });
 canvas.addEventListener('pointerup', e => {
-  if (!touch0) return;
-  const dx = e.clientX - touch0.x, dy = e.clientY - touch0.y; touch0 = null;
+  if (!touch0 || touch0.id!==e.pointerId) return;
+  const dx = e.clientX - touch0.x, dy = e.clientY - touch0.y, elapsed=performance.now()-touch0.time; touch0 = null;
+  if(input.brake || input.gas) return;
+  if(window.PODA_JumpSystem.swipe(dx,dy,elapsed)) {jump();return;}
   if (Math.abs(dx) > 30 && Math.abs(dx) > Math.abs(dy)) inputManager.command(dx > 0 ? 'MOVE_RIGHT' : 'MOVE_LEFT');
   else if (dy > 40) inputManager.command('BRAKE_PULSE');
 });
+canvas.addEventListener('pointercancel',()=>touch0=null);
 const brakeBtn = $('brakeBtn');
-brakeBtn.addEventListener('pointerdown', e => { e.preventDefault(); inputManager.command('BRAKE'); brakeBtn.classList.add('down'); hud3d?.control('brake', true); });
+brakeBtn.addEventListener('pointerdown', e => { touch0=null; e.preventDefault(); inputManager.command('BRAKE'); brakeBtn.classList.add('down'); hud3d?.control('brake', true); });
 for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) brakeBtn.addEventListener(ev, () => { inputManager.command('BRAKE', false); brakeBtn.classList.remove('down'); hud3d?.control('brake', false); });
 const gasBtn = $('gasBtn');
-gasBtn.addEventListener('pointerdown', e => { e.preventDefault(); inputManager.command('ACCELERATE'); gasBtn.classList.add('down'); hud3d?.control('gas', true); });
+gasBtn.addEventListener('pointerdown', e => { touch0=null; e.preventDefault(); inputManager.command('ACCELERATE'); gasBtn.classList.add('down'); hud3d?.control('gas', true); });
 for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) gasBtn.addEventListener(ev, () => { inputManager.command('ACCELERATE', false); gasBtn.classList.remove('down'); hud3d?.control('gas', false); });
 addEventListener('blur', () => inputManager.release());
 const hornBtn = $('hornBtn');
@@ -913,6 +945,24 @@ $('leadersResult').addEventListener('click', showLeaderboard);
 $('missionsTitle').addEventListener('click', () => { $('missionsText').textContent=missions.status().map(m=>`${m.label}: ${m.progress}/${m.target}`).join(' • '); $('missionsPanel').hidden=false; });
 $('missionsClose').addEventListener('click', () => $('missionsPanel').hidden=true);
 for(const button of document.querySelectorAll('[data-garage-category]')) button.addEventListener('click',()=>{ garageCategory=button.dataset.garageCategory; document.querySelectorAll('[data-garage-category]').forEach(b=>b.setAttribute('aria-pressed',String(b===button))); document.querySelectorAll('[data-garage-detail]').forEach(p=>p.hidden=p.dataset.garageDetail!==garageCategory); });
+$('chooseRide').addEventListener('click', openPlayerGarage);
+for(const [id,v] of Object.entries(CONFIG.vehicles)) $('rideSelect').add(new Option(v.name,id));
+for(const [id,r] of Object.entries(CONFIG.routes)) $('routeSelect').add(new Option(r.name+' · '+r.difficulty,id));
+$('rideSelect').value=vehicleId; $('routeSelect').value=routeId;
+function selectionDetails() {
+ const v=CONFIG.vehicles[vehicleId],r=CONFIG.routes[routeId];
+ $('rideStats').textContent=`${v.capacity} passengers · Speed ${Math.round(v.maxSpeed*3.6)} km/h · Handling ${Math.round(v.handling/18*5)}/5 · Braking ${Math.round(v.braking/30*5)}/5`;
+ $('routeDescription').textContent=r.stops.join(' → ')+' · '+r.description+'. Condensed arcade route.';
+ document.querySelector('.garage-tabs').hidden=vehicleId!=='poda';
+ for(const panel of document.querySelectorAll('[data-garage-detail]'))panel.hidden=vehicleId!=='poda'||panel.dataset.garageDetail!==garageCategory;
+}
+selectionDetails();
+$('rideSelect').addEventListener('change',e=>{vehicleId=e.target.value;store.set('poda-vehicle',vehicleId);buildPlayer();selectionDetails();});
+$('routeSelect').addEventListener('change',e=>{routeId=e.target.value;store.set('poda-route',routeId);DATA.route=CONFIG.routes[routeId].stops;buildPlayer();selectionDetails();});
+for(const [id,key,fallback] of [['cargoSelect','poda-cargo','loaded'],['wheelSelect','poda-wheels','steel'],['hornSelect','poda-horn','classic'],['bodyPaint','poda-paint','default'],['rackSelect','poda-rack','fitted'],['bodyTrim','poda-trim','standard'],['routeBoard','poda-board','auto'],['stickerSelect','poda-sticker','none']]){
+ $(id).value=store.get(key)||fallback;
+ $(id).addEventListener('change',e=>{store.set(key,e.target.value);buildPlayer();if(id==='hornSelect')horn();});
+}
 $('garageTitle').addEventListener('click', openPlayerGarage);
 $('garageResult').addEventListener('click', openPlayerGarage);
 $('garageClose').addEventListener('click', closePlayerGarage);
@@ -929,8 +979,10 @@ $('mute').addEventListener('click', toggleMute);
 addEventListener('visibilitychange', () => { if (document.hidden && state === 'play') pauseRun(); });
 
 function horn() {
-  sfx('horn');
+  const hornStyle=store.get('poda-horn');
+  if(hornStyle==='bright')tone(660,.3,'square',.08,480);else if(hornStyle==='deep')tone(150,.4,'sawtooth',.14,110);else sfx('horn');
   pop('POOP POOP!');
+  for(const o of obstacles)if(!o.cross&&!o.flat&&o.z>-45&&o.z<-8){o.honked=true;o.decision=0;}
   let scared = false;
   for (const o of obstacles) if (o.cross && o.z > -45 && o.z < 2 && !o.flee) { o.flee = true; o.vx = Math.sign(o.x || 1) * 4.5; scared = true; }
   if (scared && Math.random() < 0.6) say('horn');
@@ -1050,7 +1102,7 @@ function engineTick() {
   const sp = clamp(S.speed / 33, 0, 1), pushing = !input.brake && S.dwell <= 0 && S.speed > 0.5;
   const rev = pushing && input.gas ? 0.14 : pushing ? 0.05 : -0.04;
   const rate = S.dwell > 0 || S.speed < 0.5 ? 0.7 : 0.78 + 0.62 * sp + rev;
-  engine.src.playbackRate.setTargetAtTime(rate, t, 0.18);
+  engine.src.playbackRate.setTargetAtTime(rate * CONFIG.vehicles[vehicleId].pitch, t, 0.18);
   engine.gain.gain.setTargetAtTime(on ? (S.speed < 0.5 ? 0.22 : 0.3 + 0.35 * sp) : 0, t, 0.2);
   engine.lp.frequency.setTargetAtTime(700 + 2600 * sp + (pushing ? 500 : 0), t, 0.2);
 }
@@ -1091,6 +1143,7 @@ const hudEls = { cash: $('cash'), dist: $('dist'), kmh: $('kmh'), stopName: $('s
 const seatsEl = $('seats');
 for (let i = 0; i < CAP; i++) seatsEl.appendChild(document.createElement('i'));
 function renderSeats() {
+  if(seatsEl.children.length!==CAP){seatsEl.replaceChildren();for(let i=0;i<CAP;i++)seatsEl.appendChild(document.createElement('i'));}
   const drops = paxForStop();
   [...seatsEl.children].forEach((el, i) => { el.className = i < drops ? 'drop' : i < S.pax.length ? 'on' : ''; });
   hudEls.paxN.textContent = `${S.pax.length}/${CAP}`;
@@ -1157,7 +1210,9 @@ function startRun() {
   transitionTime = reduceMotion || demo ? 0 : 1.3;
   if (workshop) workshop.visible = false;
   world.visible = true;
+  CAP=CONFIG.vehicles[vehicleId].capacity; DATA.route=CONFIG.routes[routeId].stops; buildPlayer();
   resetRun();
+  for(const ch of chunks) fillChunk(ch);
   changeState('play');
   clock.reset();
   garageHidden = [];
@@ -1166,9 +1221,11 @@ function startRun() {
   $('title').hidden = true; $('over').hidden = true; $('hud').hidden = false; $('touch').hidden = false; $('radio').hidden = false;
   musicInit(); engineInit();
   popsEl.innerHTML = '';
+  pop('Swipe to steer · swipe up / Space to hop low debris');
+  updateHud();
   canvas.focus?.();
   events.emit('game:start', { route: DATA.route });
-  api.start();
+  // New vehicle/route scores are local until the online validator supports this ruleset.
 }
 function pauseRun() {
   if (state !== 'play') return;
@@ -1179,7 +1236,7 @@ function pauseRun() {
 }
 function resumeRun() {
   if (state !== 'paused') return;
-  changeState('play'); clock.reset();
+  changeState('play'); clock.reset(); canvas.focus();
   $('pause').hidden = true; $('touch').hidden = false;
   events.emit('game:resume', {});
 }
@@ -1188,11 +1245,14 @@ function endRun(completed = false) {
   changeState(completed ? 'complete' : 'over');
   S.over = true; S.completed = completed;
   const result = RULES.summarize(S);
+  lastResult={...result,id:crypto.randomUUID(),date:Date.now(),vehicle:vehicleId,route:routeId};resultVehicle=CONFIG.vehicles[vehicleId].name;resultRoute=CONFIG.routes[routeId].name;
+  if(resultModel)resultModel.traverse(m=>{if(m.isMesh)m.geometry.dispose();});
+  resultModel=player.clone(true);resultModel.traverse(m=>{if(m.isMesh)m.geometry=m.geometry.clone();});
   events.emit(completed ? 'route:complete' : 'game:over', result);
   const best = Math.max(+store.get('poda-best-score') || 0, result.score);
   store.set('poda-best-score', String(best));
   $('overTitle').innerHTML = completed ? 'Shift<br>complete!' : pick(DATA.over).replace(' don ', '<br>don ');
-  $('overEyebrow').textContent = completed ? 'Goderich to FBC' : 'Jammed near ' + stopName(S.stopIdx);
+  $('overEyebrow').textContent = completed ? CONFIG.routes[routeId].name : 'Jammed near ' + stopName(S.stopIdx);
   $('overLine').textContent = `Delivered ${result.passengersDelivered} passenger${result.passengersDelivered === 1 ? '' : 's'} across ${(result.distance / 1000).toFixed(2)} km. ${result.stopsServed} stops served · ${result.stopsMissed} missed.`;
   $('sScore').textContent = result.score.toLocaleString('en-US');
   $('sCash').textContent = fmtLe(result.earnings);
@@ -1204,14 +1264,8 @@ function endRun(completed = false) {
   $('sPerfect').textContent = result.perfectStops;
   $('scoreBreakdown').textContent = `Score: ${result.passengersDelivered} delivered × 100 + ${result.stopsServed} stops × 30 + ${result.perfectStops} perfect × 40 + ${Math.floor(result.distance / 20)} distance${completed ? ' + 300 finish' : ''} − ${result.stopsMissed} missed × 25 − ${result.collisions} collisions × 40 (minimum 0).`;
   $('missionSummary').textContent = 'Route goals: ' + missions.status().map(mission => `${mission.label} ${mission.progress}/${mission.target}`).join(' · ');
-  $('onlineStatus').textContent = 'Saving online score…';
+  $('onlineStatus').textContent = 'This-device leaderboard · enter a name to save your run.';
   const finishedSerial = runSerial;
-  api.finish(result, Math.round(S.time * 1000)).then(online => {
-    if (runSerial !== finishedSerial) return;
-    $('onlineStatus').textContent = online
-      ? `Online rank: #${online.rank} · official score ${online.score.toLocaleString('en-US')}`
-      : 'Result saved locally. Online leaderboard unavailable.';
-  });
   $('bestOver').textContent = 'Best score: ' + best.toLocaleString('en-US');
   setHint('');
   setTimeout(() => {
@@ -1226,7 +1280,12 @@ function buildPlayer() {
     scene.remove(player);
     player.traverse(part => { if (part.userData.baked) part.geometry.dispose(); });
   }
-  player = makePoda(selectedSlogan, 'LUMLEY – PZ', SCHEMES[0], true, selectedLivery);
+  player = vehicleId==='poda' ? makePoda(selectedSlogan, (store.get('poda-board')&&store.get('poda-board')!=='auto'?store.get('poda-board'):DATA.route[0].toUpperCase()+' – '+DATA.route.at(-1).toUpperCase()), SCHEMES[0], true, selectedLivery) : ({kekeh:makeKekeh,taxi:makeCar,okada:makeOkada,waka:makeWakaFine}[vehicleId]()).g;
+  if(vehicleId==='poda' && ['salone','tektem'].includes(store.get('poda-sticker'))){
+    const style=store.get('poda-sticker'),key='sticker:'+style;
+    if(!mats[key]){const tex=canvasTex(256,96,(g,w,h)=>{g.fillStyle='#f8efd9';g.fillRect(0,0,w,h);if(style==='salone'){['#1eb53a','#fff','#0072c6'].forEach((c,i)=>{g.fillStyle=c;g.fillRect(0,i*h/3,w,h/3);});}else{g.fillStyle='#254b37';g.font='bold 38px sans-serif';g.fillText('TEK TEM!',20,62);}});mats[key]=new THREE.MeshLambertMaterial({map:tex});}
+    const sticker=new THREE.Mesh(G.box,mats[key]);sticker.scale.set(.8,.3,.025);sticker.position.set(-.48,.95,2.745);player.add(sticker);
+  }
   apprentice = player.userData.apprentice;
   const parent = apprentice?.parent;
   if (apprentice) parent.remove(apprentice);
@@ -1238,14 +1297,17 @@ function buildPlayer() {
   }});
   if (apprentice) parent.add(apprentice);
   scene.add(player);
+  if(contactShadow)contactShadow.scale.set(CONFIG.vehicles[vehicleId].width/2.1,CONFIG.vehicles[vehicleId].length/5.4,1);
 }
 function poseGarageCamera() {
   player.position.set(0, 0, 0);
   player.rotation.set(0, 0.25, 0);
   if (contactShadow) contactShadow.position.x = 0;
-  const angle = {paint:[6,3.4,-8],slogan:[4.8,3.0,9],horn:[4,2.6,-8],body:[6,4,7],upgrades:[5,3,-7]}[garageCategory];
-  camera.position.set(...angle);
-  camera.lookAt(camera.aspect < .8 ? 0 : 1.6, camera.aspect < .8 ? .1 : 1.45, 0);
+  const angle = {paint:[6,3.4,-8],slogan:[4.8,3.0,9],horn:[4,2.6,-8],body:[6,4,7],upgrades:[5,3,-7]}[garageCategory] || [6,3.4,-8];
+  const orbit=reduceMotion?0:Math.sin(performance.now()*.0003)*1.2;
+  const scale=vehicleId==='waka'?1.4:vehicleId==='okada'?.8:1;
+  camera.position.set((angle[0]+orbit)*scale,angle[1]*scale,angle[2]*scale);
+  camera.lookAt(camera.aspect < .8 ? 0 : -1.6, camera.aspect < .8 ? -1.35 : 1.45, 0);
 
 }
 function openPlayerGarage() {
@@ -1273,20 +1335,30 @@ function closePlayerGarage() {
   else $('over').hidden = false;
 }
 function showLeaderboard() { $('leaderboard').hidden = false; loadLeaderboard(); }
+function readScores(){try{const rows=JSON.parse(store.get('poda-scores-v2')||'[]');return Array.isArray(rows)?rows.filter(r=>Number.isFinite(r.score)&&Number.isFinite(r.date)):[];}catch{return [];}}
+function saveLocalScore(){
+ if(!lastResult)return;
+ const name=$('driverName').value.trim().slice(0,24)||'Salone driver';store.set('poda-driver-name',name);
+ const rows=readScores().filter(r=>r.id!==lastResult.id);rows.push({...lastResult,name});rows.sort((a,b)=>b.score-a.score);const saved=store.set('poda-scores-v2',JSON.stringify(rows.slice(0,100)));
+ $('shareStatus').textContent=saved?'Score saved on this device.':'Browser storage is unavailable. You can still download your poster.';
+}
+$('driverName').value=store.get('poda-driver-name')||'';
+$('saveScore').addEventListener('click',saveLocalScore);
+$('copyLink').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(gameURL);$('shareStatus').textContent='Game link copied.';}catch{$('shareStatus').textContent=gameURL;}});
+$('shareScore').addEventListener('click',async()=>{
+ if(!lastResult)return;saveLocalScore();$('shareScore').disabled=true;$('shareStatus').textContent='Creating your 4K poster…';
+ try{
+ const blob=await createScorePoster({THREE,renderer,player:resultModel,name:$('driverName').value,score:lastResult.score,vehicle:resultVehicle,route:resultRoute,url:gameURL});
+ const file=new File([blob],'poda-poda-score.png',{type:'image/png'});
+ if(navigator.canShare?.({files:[file]})){try{await navigator.share({files:[file],title:'Poda-Poda Run',text:'Can you beat my Freetown score?'});$('shareStatus').textContent='Poster shared.';return;}catch(error){if(error.name==='AbortError'){$('shareStatus').textContent='Sharing cancelled. Your score is saved.';return;}}}
+ const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=file.name;a.click();setTimeout(()=>URL.revokeObjectURL(url),30000);$('shareStatus').textContent='4K PNG downloaded. Share it with your crew!';
+ }catch(error){$('shareStatus').textContent='Could not create the poster. Please try again.';console.error(error);}finally{$('shareScore').disabled=false;}
+});
 async function loadLeaderboard() {
-  const period = $('leaderPeriod').value;
-  $('leaderMessage').textContent = 'Loading…';
-  $('leaderEntries').replaceChildren();
-  try {
-    const entries = await api.leaderboard(period);
-    if ($('leaderPeriod').value !== period) return;
-    $('leaderMessage').textContent = entries.length ? '' : 'No runs recorded for this period.';
-    for (const entry of entries) {
-      const item = document.createElement('li');
-      item.textContent = `${entry.player_name || 'Driver'} — ${Number(entry.score).toLocaleString('en-US')} points`;
-      $('leaderEntries').appendChild(item);
-    }
-  } catch { $('leaderMessage').textContent = 'Leaderboard unavailable. Try again later.'; }
+ const period=$('leaderPeriod').value,now=new Date(),start=new Date(now);start.setHours(0,0,0,0);if(period==='week')start.setDate(start.getDate()-(start.getDay()+6)%7);
+ const entries=readScores().filter(r=>period==='all'||r.date>=start.getTime()).sort((a,b)=>b.score-a.score);
+ $('leaderEntries').replaceChildren();$('leaderMessage').textContent='This device · '+(entries.length?'Best driving scores':'No saved scores yet.');
+ for(const entry of entries){const li=document.createElement('li');li.textContent=`${entry.name} — ${entry.score.toLocaleString('en-US')} · ${CONFIG.routes[entry.route]?.name||'Run'} · ${CONFIG.vehicles[entry.vehicle]?.name||'Poda'}`;$('leaderEntries').append(li);}
 }
 
 /* ---------- Autopilot (title-screen attract mode and #demo) ---------- */
@@ -1328,18 +1400,22 @@ function loop(now) {
   if (state === 'attract') {
     player.position.set(0,0,0); player.rotation.set(0,0,0); player.visible=true;
     const a=reduceMotion ? .57 : .57 + Math.sin(now*.00012)*.1;
-    camera.position.set(Math.sin(a)*12,4,Math.cos(a)*12);
+    const distance=CONFIG.vehicles[vehicleId].camera.distance;
+    camera.position.set(Math.sin(a)*distance,CONFIG.vehicles[vehicleId].camera.height,Math.cos(a)*distance);
     camera.lookAt(camera.aspect<.8 ? 0 : 3.4, camera.aspect<.8 ? .0 : 1.55, 0);
     sun.position.set(-28,32,20);sun.target.position.set(0,0,-12);
     if(contactShadow)contactShadow.position.x=0;
+    for(const o of obstacles){if(!o.flat&&!o.static){o.z-=(o.speed||0)*dt;if(o.z < -220)o.z=20;o.g.position.z=o.z;}}
+
   }
   if (state === 'play' && !benchmark) {
     if(transitionTime>0){
       transitionTime=Math.max(0,transitionTime-dt);
       const t=1-transitionTime/1.3, smooth=t*t*(3-2*t);
-      camera.position.set(S.x+2,4.5,13.5);camera.lookAt(S.x,1.5,-16);
+      const vc=S.vehicle.camera;
+      camera.position.set(S.x+2,vc.height,vc.distance);camera.lookAt(S.x,1.5,-16);
       const targetQ=camera.quaternion.clone();
-      camera.position.lerpVectors(transitionPose.position,new THREE.Vector3(S.x+2,4.5,13.5),smooth);
+      camera.position.lerpVectors(transitionPose.position,new THREE.Vector3(S.x+2,vc.height,vc.distance),smooth);
       camera.quaternion.copy(transitionPose.quaternion).slerp(targetQ,smooth);
       player.position.x=S.x;
     }else update(dt);
@@ -1369,11 +1445,13 @@ function update(dt) {
   const { distance: d, gas, dwellFinished } = window.PODA_PlayerSystem.stepPlayer(S, input, dt, state, LANES);
   if (dwellFinished) finishDwell();
 
+  if(window.PODA_JumpSystem.step(S,dt)){S.bump=.22;S.shake=reduceMotion?0:.15;sfx('thud');events.emit('jump:land',{});}
+  S.bump=Math.max(0,S.bump-dt);
   // player
   player.position.x = S.x;
   player.rotation.y = -(LANES[S.lane] - S.x) * 0.07;
   player.rotation.z = (LANES[S.lane] - S.x) * 0.025 + (S.speed > 1 ? Math.sin(S.time * 18) * 0.004 : 0);
-  player.position.y = S.speed > 1 ? Math.abs(Math.sin(S.time * 9)) * 0.03 : 0;
+  player.position.y = (S.jumpY||0) + Math.sin(S.bump*35)*S.bump*.22 + (S.speed > 1 ? Math.abs(Math.sin(S.time * 9)) * 0.03 : 0);
   player.visible = !(S.invuln > 0 && Math.floor(S.time * 14) % 2 === 0);
   if (apprentice) {
     const u=apprentice.userData;
@@ -1384,7 +1462,7 @@ function update(dt) {
 
   // scrolling surfaces
   roadTex.offset.y += d / 20; roadDetailTex.offset.y += d / 20; walkTex.offset.y += d / 4;
-  if (contactShadow) contactShadow.position.x = S.x;
+  if (contactShadow) {contactShadow.position.x = S.x;contactShadow.material.opacity=.6/(1+(S.jumpY||0));}
 
   // scenery chunks
   for (const ch of chunks) {
@@ -1398,7 +1476,7 @@ function update(dt) {
     const s = stopObj; s.z += d; s.g.position.z = s.z;
     if (!s.served && !s.missed && !isFinished()) {
       const inZone = RULES.canServeStop({ distanceFromCentre: s.z, lane: S.lane, laneX: LANES[2], playerX: S.x, speed: S.speed });
-      if (inZone) beginDwell();
+      if (inZone && !S.jumpY) beginDwell();
       else if (s.z > 9) missStop();
     }
     for (const w of s.walkers) {
@@ -1434,6 +1512,7 @@ function update(dt) {
   // obstacles
   for (let i = obstacles.length - 1; i >= 0; i--) {
     const o = obstacles[i];
+    window.PODA_TrafficAI.step(o,obstacles,S,dt,LANES);
     const despawn = window.PODA_TrafficSystem.stepTraffic(o, d, dt, LANES);
     if (o.cross) {
       if (o.body) o.body.position.y = Math.abs(Math.sin(S.time * 10)) * 0.06;
@@ -1611,6 +1690,7 @@ fontsReady.catch(() => {}).then(() => {
   roles = createRoleDecorator(kit);
   streetAssets = createStreetAssets(kit);
   kit.streetAssets = streetAssets;
+  registerEasternDistricts(PLUG);
   freight = createFreightFactory(kit, streetAssets);
   lumleyDetails = createLumleyDetails(kit, streetAssets, createBuildingFactory(kit, streetAssets));
   PLUG.kit = kit; PLUG.debug = { renderer, scene };
