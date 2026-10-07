@@ -162,6 +162,23 @@ window.PODA.districts = window.PODA.districts || {};
       const R = (y0, y1, col) => { c.fillStyle = col; c.fillRect(0, py(y1), W, py(y0) - py(y1)); };
       R(0.48, 1.38, hex(L.body));
       L.draw(c, W, H, R, py);
+      // The paint stays readable, while dust and small chips break up factory-flat panels.
+      const dust = c.createLinearGradient(0, H * .42, 0, H);
+      dust.addColorStop(0, 'rgba(108,91,66,0)');
+      dust.addColorStop(1, 'rgba(100,79,56,.3)');
+      c.fillStyle = dust; c.fillRect(0, H * .42, W, H * .58);
+      let seed = L.id.split('').reduce((n, ch) => (n * 31 + ch.charCodeAt(0)) >>> 0, 1);
+      const next = () => ((seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296);
+      for (let i = 0; i < 410; i++) {
+        const x = next() * W, y = (0.15 + next() * .85) * H, r = .5 + next() * 2.5;
+        c.fillStyle = next() < .3 ? 'rgba(61,58,52,.24)' : 'rgba(244,228,195,.22)';
+        c.fillRect(x, y, r * (1 + next() * 2), r);
+      }
+      for (let i = 0; i < 18; i++) {
+        c.strokeStyle = 'rgba(55,55,53,.18)'; c.lineWidth = 1;
+        const x = next() * W, y = next() * H;
+        c.beginPath(); c.moveTo(x, y); c.lineTo(x + 4 + next() * 18, y + next() * 3); c.stroke();
+      }
       R(0.48, 0.56, '#45484c');                                   // grey sill moulding
     });
   }
@@ -219,7 +236,9 @@ window.PODA.districts = window.PODA.districts || {};
     init(kit);
     opt = opt || {};
     const g = new T.Group();
-    const L = opt.scheme === K.SCHEMES[0] ? LIVERIES[0] : K.pick(LIVERIES);
+    const baseLivery = LIVERIES.find(l => l.id === opt.livery) || (opt.scheme === K.SCHEMES[0] ? LIVERIES[0] : K.pick(LIVERIES));
+    const paint={ivory:0xe4d5b3,green:0x397550,blue:0x426f91,ochre:0xc7a452}[opt.paint];
+    const L=paint?{...baseLivery,id:baseLivery.id+'_'+opt.paint,body:paint}:baseLivery;
     const crew = !!opt.withCrew;
 
     mesh(g, extrudeX('podaBody', PODA_PTS, PD, PB), L.body, 0, 0, 0, true);
@@ -252,27 +271,42 @@ window.PODA.districts = window.PODA.districts || {};
     box(g, 0xf4f4f0, 0.5, 0.12, 0.02, 0, 0.44, -2.82);
     // rear: slogan + route (engine texture), tall Sprinter tail lights, bumper, plate
     mesh(g, once('podaRearG', () => new T.PlaneGeometry(1.76, 0.88)), mapMat(K.getSloganTex(opt.slogan || 'GOD IS GREAT', opt.routeText || 'LUMLEY – PZ')), 0, 1.9, 2.705);
+    if (L.id === 'bluelower') box(g, 0x1d4f9c, 1.76, .49, .012, 0, .93, 2.71);
     for (const s of [1, -1]) { box(g, 0xc0161b, 0.14, 0.62, 0.04, s * 0.9, 0.98, 2.705); box(g, 0xf0a020, 0.14, 0.14, 0.04, s * 0.9, 1.37, 2.705); }
     box(g, 0x2b2e31, 0.025, 0.95, 0.012, 0, 0.98, 2.706);
     box(g, 0x3b3e42, 2.0, 0.22, 0.16, 0, 0.45, 2.74);
     box(g, 0xf4f4f0, 0.5, 0.13, 0.02, 0, 0.75, 2.71);
     // wheels: steel rims with hub caps
-    for (const [x, z] of [[0.87, -1.75], [-0.87, -1.75], [0.87, 1.55], [-0.87, 1.55]]) wheel(g, x, 0.36, z, 0.36, 0.26, 0.21, 0xa9adb1);
+    for (const [x, z] of [[0.87, -1.75], [-0.87, -1.75], [0.87, 1.55], [-0.87, 1.55]]) wheel(g, x, 0.36, z, 0.36, 0.26, 0.21, opt.wheelStyle==='chrome'?0xf0f3fa:opt.wheelStyle==='dark'?0x25282d:0xa9adb1);
+    if(opt.bodyTrim==='guard'){box(g,0x494f4f,1.9,.1,.14,0,.68,-2.9);for(const x of [-.65,.65])box(g,0x494f4f,.1,.6,.14,x,.7,-2.9);}
     // roof rack and load
     const ry = 2.58;
-    for (const s of [1, -1]) box(g, 0x2a2a2a, 0.06, 0.12, 3.4, s * 0.86, ry + 0.06, 0.85);
-    for (const z of [-0.7, 0.85, 2.4]) box(g, 0x2a2a2a, 1.78, 0.05, 0.06, 0, ry + 0.02, z);
-    const slots = [-0.4, 0.5, 1.4, 2.2], n = crew ? 2 : K.randi(2, 4);
+    if(opt.roofRack!=='none')for (const s of [1, -1]) box(g, 0x2a2a2a, 0.06, 0.12, 3.4, s * 0.86, ry + 0.06, 0.85);
+    if(opt.roofRack!=='none')for (const z of [-0.7, 0.85, 2.4]) box(g, 0x2a2a2a, 1.78, 0.05, 0.06, 0, ry + 0.02, z);
+    const slots = [-0.4, 0.5, 1.4, 2.2], n = opt.roofRack==='none'||opt.roofCargo==='empty'?0:crew ? 2 : K.randi(2, 4);
     K.pick([0, 1]) && slots.reverse();
     for (let i = 0; i < n; i++) K.pick(CARGO)(g, K.rand(-0.25, 0.25), ry + 0.04, slots[i]);
 
+    if (K.streetAssets) {
+      const a=K.streetAssets;
+      a.panel(g,7,.55,.21,0,.72,2.733);
+      a.panel(g,6,1.75,.2,0,.48,2.835);
+      if(L.id==='bluelower')a.worn(g,15,1.73,.42,.015,0,.96,2.726);
+      // Dirt concentrated along sills and rear bumper, not across every painted surface.
+      for(const side of [-1,1]) {
+        a.worn(g,14,.016,.1,4.9,side*1.009,.45,.1);
+        box(g,0x605448,.17,.03,4.0,side*.8,2.62,.65);
+        for(const z of [-.5,.7,1.8])box(g,0xb5a985,1.75,.025,.025,0,2.94,z);
+      }
+    }
     if (crew) {
+      box(g,0x494841,.44,.08,1.2,1.13,.34,-.3);
       // sliding door open on the right: dark doorway, door slid back along the body
       box(g, 0x0d1215, 0.012, 1.72, 1.1, 1.008, 1.34, -0.3);
       box(g, L.body, 0.035, 1.76, 1.12, 1.03, 1.34, 0.86, true);
       box(g, GLASS, 0.01, 0.64, 0.86, 1.05, 1.82, 0.86);
       const piv = new T.Group(); piv.position.set(1.04, 0.4, -0.25); piv.rotation.z = -0.34; g.add(piv);
-      const app = K.makePerson({ lappa: false, role: 'apprentice', cast: true });
+      const app = K.makePerson({ lappa: false, role: 'apprentice', lod: 'high', cast: true });
       app.rotation.y = 0.42 * PI; piv.add(app);
       const u = app.userData;
       if (u.armR) u.armR.rotation.z = 2.3;

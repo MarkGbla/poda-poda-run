@@ -1,0 +1,209 @@
+/* The driving instruments sit over the street, with room for a clear road view. */
+/* Three.js paints the visible driving HUD; these nodes supply text and a WebGL fallback. */
+body.hud-three #hud,
+body.hud-three #hint,
+body.hud-three #pops { opacity: 0; }
+body.hud-three #touch button { opacity: 0; }
+body.hud-three #touch button:focus-visible { opacity: 1; }
+#hud {
+  box-sizing: border-box;
+  grid-template-columns: minmax(150px, 224px) minmax(235px, 392px) minmax(150px, 224px);
+  justify-content: space-between;
+  gap: 14px;
+  padding: calc(env(safe-area-inset-top, 0px) + 16px) max(16px, env(safe-area-inset-right, 0px)) 0 max(16px, env(safe-area-inset-left, 0px));
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, .22));
+}
+.hud-l, .hud-r { gap: 6px; align-items: stretch; }
+.chip, #stopCard {
+  box-sizing: border-box;
+  color: #f8f7f3;
+  background: linear-gradient(155deg, rgba(25, 35, 45, .9), rgba(10, 17, 24, .82));
+  border: 1px solid rgba(255, 255, 255, .36);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .17), 0 5px 14px rgba(0, 0, 0, .32);
+  backdrop-filter: blur(9px);
+  -webkit-backdrop-filter: blur(9px);
+}
+.chip { border-radius: 12px; padding: 7px 10px; }
+.instrument { display: flex; align-items: center; gap: 10px; min-height: 58px; }
+.instrument-copy { display: flex; flex-direction: column; justify-content: center; min-width: 0; }
+.instrument .lbl { color: #e7e9e9; opacity: .92; letter-spacing: .035em; font-size: 10px; }
+.instrument .big { font: 800 clamp(18px, 2.2vw, 27px)/1 var(--body); letter-spacing: -.025em; white-space: nowrap; }
+#cashChip .big { color: #fff; }
+.instrument-icon { display: grid; place-items: center; flex: none; width: 35px; height: 35px; border-radius: 9px; font: 900 17px/1 var(--body); color: #122820; background: linear-gradient(145deg, #5bea9c, #1cb56e); box-shadow: inset 0 -3px 0 rgba(0,0,0,.18); }
+.speed-icon { color: #fff; background: #273d53; border: 2px solid #b7d4eb; border-radius: 50%; box-sizing: border-box; }
+.people-icon { color: #fff; background: #42657a; font-size: 16px; letter-spacing: -5px; padding-right: 5px; box-sizing: border-box; }
+.bus-icon { color: #fff; background: #42657a; font-size: 25px; }
+#body { display: block; width: 100%; max-width: 130px; height: 10px; margin-top: 6px; background: #616b6c; border-radius: 100px; overflow: hidden; box-shadow: inset 0 2px 3px rgba(0,0,0,.35); }
+#body i { display: block; float: left; width: 50%; height: 100%; border-radius: 0; background: linear-gradient(#63ed81, #1bac51); }
+#body i.off { background: #c94647; }
+#stopCard {
+  position: relative;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  column-gap: 9px;
+  align-items: center;
+  min-width: 0;
+  padding: 10px 14px 11px;
+  border-radius: 14px;
+  text-align: left;
+}
+.stop-pin { display: grid; place-items: center; align-self: start; width: 27px; height: 34px; color: #1f2c38; font-size: 13px; background: #ffcb38; clip-path: polygon(50% 0, 90% 15%, 100% 52%, 50% 100%, 0 52%, 10% 15%); }
+.stop-info { min-width: 0; }
+#stopCard .lbl { color: #ecf0f0; opacity: 1; font-size: 11px; letter-spacing: .07em; }
+#stopName { font: 800 clamp(17px, 2vw, 25px)/1.08 var(--body); letter-spacing: -.025em; overflow: hidden; text-overflow: ellipsis; }
+#stopDist { color: #ffcb38; font: 800 18px/1 var(--body); white-space: nowrap; align-self: end; padding-bottom: 2px; }
+#stopBar { grid-column: 1 / -1; position: relative; height: 5px; margin: 14px 4px 2px; overflow: visible; background: rgba(228,233,233,.43); border-radius: 99px; }
+#stopBar i { height: 100%; border-radius: 99px; background: #3fe38b; }
+#stopBar .progress-start, #stopBar .progress-end { position: absolute; top: -5px; width: 14px; height: 14px; border: 2px solid #13222d; border-radius: 50%; background: #eef2f2; }
+#stopBar .progress-start { left: -2px; background: #3fe38b; }
+#stopBar .progress-end { right: -2px; }
+#stopBar .progress-bus { position: absolute; top: -11px; left: calc(var(--progress, 0%) - 10px); color: #ffcb38; background: #18222b; border-radius: 4px; font-size: 17px; line-height: 23px; width: 24px; height: 23px; text-align: center; }
+#stopDrop { grid-column: 1 / -1; margin-top: 4px; color: #d5e1df; font-size: 10px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+#hint { bottom: calc(env(safe-area-inset-bottom, 0px) + 112px); color: #f7fff9; background: rgba(13, 24, 28, .87); border: 1px solid #6dde9f; box-shadow: 0 0 0 4px rgba(35, 190, 105, .18), 0 8px 28px #0009; font-size: 14px; letter-spacing: .02em; }
+#hint kbd { color: #121f20; background: #59e49c; }
+#pops { top: 28%; }
+.pop:not(.krio) { color: #fff; -webkit-text-stroke: 0; text-shadow: 0 3px 15px #000; background: rgba(10, 28, 22, .87); border: 1px solid #4de786; border-radius: 12px; padding: 10px 22px; box-shadow: 0 0 0 5px #2ec65a33, 0 12px 28px #0008; font-family: var(--body); font-weight: 900; }
+.pop.money { color: #ffd14a; }
+.pop.bad { color: #ffaaa4; border-color: #e84b50; background: #301719ec; }
+.pop.krio { color: #fff; background: rgba(20, 31, 38, .93); border: 1px solid #bcd0d0; box-shadow: 0 8px 25px #0008; }
+#touch { align-items: end; }
+#touch button { width: clamp(74px, 12vw, 100px); height: clamp(74px, 12vw, 100px); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border: 5px solid currentColor; border-radius: 50%; box-shadow: inset 0 2px 10px #000a, 0 7px 15px #0009; color: #fff; background: #111b25; font: 800 12px var(--body); text-shadow: 0 2px 5px #000; }
+#touch button span { font: 900 28px/1 var(--body); }
+#touch button b { font: 900 12px/1 var(--body); }
+#hornBtn { border-color: #2d90ff !important; }
+#brakeBtn { border-color: #f34d52 !important; }
+#gasBtn { border-color: #45ee78 !important; }
+#gasBtn span { color: #45ee78; }
+#brakeBtn span { color: #f34d52; }
+.pedals { gap: 9px; }
+#radio button { background: rgba(12,22,30,.76); border: 1px solid #ffffff59; border-radius: 10px; backdrop-filter: blur(6px); }
+.screen { background: linear-gradient(90deg, rgba(8,19,24,.76), rgba(8,19,24,.22) 70%), linear-gradient(0deg, rgba(8,19,24,.68), transparent 45%); place-items: center start; padding: clamp(18px, 4vw, 55px); }
+.plate { width: min(450px, 100%); color: #f4f0e7; background: rgba(15,25,32,.9); border: 1px solid #ffffff70; border-radius: 18px; box-shadow: 0 20px 70px #000b; backdrop-filter: blur(13px); }
+.plate-top { background: transparent; padding-bottom: 4px; }
+.plate h1 { color: #fff; text-shadow: 0 3px 14px #000; }
+.plate-body { padding-top: 12px; }
+.plate-body p { color: #e7e8e2; }
+.controls kbd { color: #10271d; background: #c5ead0; }
+.btn { background: #1eb569; color: #fff; border: 1px solid #8cfab6; box-shadow: 0 5px 16px #0008; }
+.stats div { background: #2b3b40; }
+.ticket-line { border-color: #ffffff60; }
+.flag { grid-template-rows: repeat(3, 4px); }
+.proto { color: #cbd7d1; }
+@media (max-width: 700px) {
+  #hud { grid-template-columns: minmax(95px, 1fr) minmax(95px, 1fr); gap: 6px; padding: calc(env(safe-area-inset-top, 0px) + 7px) 8px 0; }
+  .chip { padding: 5px 7px; }
+  .instrument { gap: 6px; min-height: 39px; }
+  .instrument-icon { width: 25px; height: 25px; font-size: 12px; }
+  .instrument .lbl { font-size: 8px; }
+  .instrument .big { font-size: 16px; }
+  .hud-r { grid-column: 2; grid-row: 1; }
+  .hud-l { grid-column: 1; grid-row: 1; }
+  #stopCard { grid-column: 1 / -1; grid-row: 2; justify-self: center; width: min(320px, 100%); padding: 6px 10px; grid-template-columns: 24px minmax(0,1fr) auto; }
+  .stop-pin { width: 20px; height: 26px; font-size: 10px; }
+  #stopName { font-size: 17px; white-space: nowrap; }
+  #stopDist { font-size: 15px; }
+  #stopBar { margin-top: 7px; }
+  #stopDrop { display: none; }
+  #body { height: 7px; margin-top: 4px; }
+  #hint { bottom: calc(env(safe-area-inset-bottom, 0px) + 99px); font-size: 12px; max-width: calc(100vw - 50px); white-space: normal; text-align: center; }
+  #radio { bottom: calc(env(safe-area-inset-bottom, 0px) + 111px); right: 8px; }
+  #radio button { font-size: 10px; max-width: 115px; }
+  .screen { place-items: center; padding: 10px; }
+  .plate { width: min(390px, 100%); max-height: calc(100dvh - 20px); overflow: auto; }
+  .plate-body { gap: 9px; }
+  .plate-body p { font-size: 13px; }
+  .controls { font-size: 11px; gap: 4px 7px; }
+  .plate h1 { font-size: 35px; }
+}
+@media (max-width: 360px) {
+  .instrument-icon { display: none; }
+  .instrument .big { font-size: 14px; }
+  #stopCard { width: min(270px, 100%); }
+  .pedals { gap: 4px; }
+}
+/* Documentary palette: readable solid translucent surfaces, no blur pass. */
+.chip, #stopCard { backdrop-filter: none; -webkit-backdrop-filter:none; background:rgba(18,26,29,.87); }
+#title { place-items:center end; background:linear-gradient(90deg,transparent 35%,rgba(9,22,26,.42)); padding:4vw 6vw; }
+#title .plate { width:min(405px,42vw); background:transparent; border:0; box-shadow:none; overflow:visible; color:#f8f2df; }
+#title .plate-top { background:transparent; padding:0 0 20px; }
+#title .plate h1 { font-size:clamp(42px,5.8vw,82px); font-style:italic; text-shadow:3px 5px #14252b; letter-spacing:-.06em; }
+#title .plate h1::first-line { color:#fffbed; }
+#title .plate h1 { color:#ffc43f; }
+#title .flag { width:95px; grid-template-rows:repeat(3,5px); transform:skew(-15deg); }
+#title .plate-body { padding:18px 0 0; gap:14px; }
+#title #tagline { font-size:14px; max-width:34ch; text-shadow:0 2px 3px #13252b; }
+#title .controls { display:none; }
+#title .row { display:grid; gap:9px; }
+#title .row button { width:100%; text-align:left; padding:14px 20px; font:800 20px var(--body); border:1px solid #aaad9b; border-radius:8px; color:#f7f4e8; background:rgba(15,25,30,.88); box-shadow:0 3px 8px #0003; }
+#title #startBtn { background:#f3bc34;color:#13242a;border-color:#ffd961;padding-block:18px; }
+#title .proto { opacity:.85;letter-spacing:.18em;font-size:10px; }
+#title .best { color:#fff0bd;opacity:1; }
+#playerGarage { background:linear-gradient(90deg,rgba(13,24,28,.7),transparent 55%); padding:24px; }
+#playerGarage .plate { background:rgba(16,28,31,.91);color:#eee9da;border:1px solid #92998c;border-radius:10px;box-shadow:none; }
+#playerGarage .plate-top { background:transparent; }
+#playerGarage .plate h1 { font-size:38px;text-shadow:none; }
+.garage-tabs { display:grid;gap:6px; }
+.garage-tabs button { font:800 18px var(--body);text-align:left;padding:11px 14px;border:1px solid #738285;background:#23353d;color:#f2eddf;border-radius:6px;cursor:pointer; }
+.garage-tabs button[aria-pressed=true] { border-color:#eab93b;background:#365867; }
+#playerGarage select { width:100%;box-sizing:border-box; }
+#over .plate { border-radius:2px; border:0;box-shadow:0 12px 40px #0007; }
+#over .plate-top { border-bottom:2px dashed #e8dbc2; }
+#over .plate h1 { font-size:36px;text-shadow:none; }
+#over .stats b { font-family:var(--body);font-weight:800; }
+#scoreBreakdown { font-size:11px; }
+#renderStats { position:fixed;left:50%;bottom:8px;transform:translateX(-50%);font:11px monospace;color:#f9eec8;background:#17252be8;padding:6px 10px;z-index:40;pointer-events:none;white-space:nowrap; }
+#missionsPanel { z-index:15; }
+@media (max-width:700px) {
+  #title { place-items:end center;padding:22px;background:linear-gradient(0deg,rgba(10,25,29,.86),transparent 75%); }
+  #title .plate { width:min(390px,100%);max-height:60dvh; }
+  #title .plate-top { padding-bottom:8px; }
+  #title .plate h1 { font-size:42px;line-height:.95; }
+  #title #tagline { display:none; }
+  #title .plate-body { padding-top:10px;gap:8px; }
+  #title .row { grid-template-columns:1fr 1fr;gap:7px; }
+  #title #startBtn { grid-column:1/-1; }
+  #title .row button { font-size:16px;padding:11px 14px; }
+  #title #leadersTitle { grid-column:1/-1; }
+  #playerGarage { padding:12px;place-items:end center;background:linear-gradient(0deg,#10232ba8,transparent); }
+  #playerGarage .plate { width:100%;max-height:44dvh;overflow:auto; }
+  #playerGarage .plate-top { padding:10px 16px; }
+  #playerGarage .plate h1 { font-size:24px; }
+  #playerGarage .plate-body { padding:8px 14px 14px; }
+  .garage-tabs { grid-template-columns:repeat(5,1fr);gap:3px; }
+  .garage-tabs button { padding:9px 3px;font-size:11px;text-align:center; }
+  #renderStats { bottom:0;font-size:9px; }
+}
+@media (hover:hover) and (pointer:fine) {
+  #touch { display:flex; }
+  #touch button { width:76px;height:76px;opacity:.8; }
+  #radio { bottom:105px; }
+}
+/* Selection and results remain scrollable on short portrait and landscape screens. */
+#playerGarage .plate-body { max-height: min(64vh, 660px); overflow-y:auto; }
+#rideStats,#routeDescription {font-size:13px;line-height:1.5;margin:8px 0 14px;}
+#playerGarage select,#driverName {width:100%;min-height:44px;border-radius:9px;padding:10px;background:#fff9e9;color:#172e26;border:1px solid #9eaa94;font:inherit;}
+#playerGarage label {display:block;font-weight:650;margin:8px 0;}
+#over .plate {max-height:94dvh;overflow:auto;}
+#shareStatus {font-size:13px;min-height:1em;}
+#seats {max-width:180px;}
+@media(max-width:600px){#playerGarage .plate-body{max-height:51dvh;}#playerGarage .plate-top h1{font-size:30px;}#rideStats,#routeDescription{font-size:12px;margin:6px 0;}#over .stats{gap:8px;}#over h1{font-size:36px;}#title .controls{display:none;}}
+html,body {touch-action:auto;}
+#c {touch-action:none;outline:none;}
+#playerGarage .garage-tabs {display:flex;flex-wrap:wrap;gap:5px;margin:12px 0;}
+#playerGarage .garage-tabs button {font-size:12px;min-height:44px;padding:8px;flex:1;}
+#playerGarage .plate-body > .row {position:sticky;bottom:-14px;background:#172c31;padding:10px 0;margin-top:12px;z-index:1;}
+@media(max-width:700px){#playerGarage .plate {max-height:51dvh;}#playerGarage .plate-body{max-height:39dvh;}#playerGarage .plate-top h1{font-size:24px;}}
+@media(max-height:520px){
+ .screen{padding:12px;}
+ #title{padding:12px 24px;}
+ #title .plate{max-height:94dvh;overflow-y:auto;width:min(420px,52vw);}
+ #title .plate h1{font-size:34px;}
+ #title .plate-top{padding-bottom:6px;}
+ #title #tagline,#title .proto{display:none;}
+ #title .plate-body{padding-top:8px;}
+ #title .row{grid-template-columns:1fr 1fr;gap:6px;}
+ #title .row button{padding:9px;font-size:14px;min-height:44px;}
+ #title #startBtn{grid-column:1/-1;padding:10px;}
+ #playerGarage .plate{max-height:94dvh;}
+ #playerGarage .plate-body{max-height:65dvh;}
+}
