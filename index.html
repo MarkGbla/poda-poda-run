@@ -65,28 +65,26 @@
   <div id="title" class="screen">
     <header class="start-topbar">
       <div class="start-brand"><span class="start-brand-mark" aria-hidden="true">▰</span><div><small>Freetown, Sierra Leone</small><strong>Poda-Poda <em>Run</em></strong></div></div>
-      <div class="start-topbar-right"><div class="start-radio" aria-label="Featured soundtrack"><span aria-hidden="true">♫</span><div><small>ON THE ROAD</small><strong>Drizilik · Sabi Road</strong></div></div><div class="start-best"><small>BEST SCORE</small><strong id="bestTitle">—</strong></div></div>
+      <div class="start-topbar-right"><div class="start-radio" aria-label="Featured soundtrack"><span aria-hidden="true">♫</span><div><small>MUSIC</small><strong>Drizilik · Sabi Road</strong></div></div><div class="start-best"><small>BEST SCORE</small><strong id="bestTitle">—</strong></div></div>
     </header>
 
     <div class="start-side start-side-left">
-      <div class="start-feature"><span class="start-feature-icon" aria-hidden="true">🚐</span><div><small>THE STREETS ARE CALLING</small><strong>Freetown is yours</strong><span>Pick up passengers. Make every stop count.</span></div></div>
-      <button class="start-side-button" id="chooseRide" type="button"><span aria-hidden="true">🗺️</span><span><small>CHOOSE YOUR ROAD</small><strong>Routes & rides</strong></span><b aria-hidden="true">↗</b></button>
+      <div class="start-feature"><span class="start-feature-icon" aria-hidden="true">🚐</span><div><small>WELCOME</small><strong>Drive in Freetown</strong><span>Pick up people. Earn fares.</span></div></div>
+      <button class="start-side-button" id="chooseRide" type="button"><span aria-hidden="true">🗺️</span><span><small>PICK A ROUTE</small><strong>Routes</strong></span><b aria-hidden="true">↗</b></button>
     </div>
 
     <div class="start-side start-side-right">
-      <button class="start-side-button" id="missionsTitle" type="button"><span aria-hidden="true">⭐</span><span><small>YOUR SHIFT GOALS</small><strong>Missions</strong></span><b aria-hidden="true">↗</b></button>
-      <button class="start-side-button" id="leadersTitle" type="button"><span aria-hidden="true">🏆</span><span><small>LOCAL SCORES</small><strong>Leaders</strong></span><b aria-hidden="true">↗</b></button>
+      <button class="start-side-button" id="missionsTitle" type="button"><span aria-hidden="true">⭐</span><span><small>THINGS TO DO</small><strong>Goals</strong></span><b aria-hidden="true">↗</b></button>
+      <button class="start-side-button" id="leadersTitle" type="button"><span aria-hidden="true">🏆</span><span><small>ON THIS DEVICE</small><strong>Best scores</strong></span><b aria-hidden="true">↗</b></button>
     </div>
 
     <div class="start-bottom">
-      <div class="start-kicker">SMALL SMALL · BIG JOURNEY</div>
       <div class="start-route" aria-label="Selected route">
         <button id="titleRoutePrev" type="button" aria-label="Previous route">‹</button>
         <div class="start-route-copy"><small id="titleRouteIndex">ROUTE 01</small><strong id="titleRouteName">Loading route…</strong><span id="titleRouteStops"></span></div>
         <button id="titleRouteNext" type="button" aria-label="Next route">›</button>
       </div>
-      <button class="start-drive" id="startBtn" type="button">Tap to drive <span aria-hidden="true">→</span></button>
-      <p class="start-tip">Drive the route, collect fares and bring everyone home. <span>← → steer · ↑ gas · ↓ brake · Space hop</span></p>
+      <button class="start-drive" id="startBtn" type="button">Tap to drive</button>
       <nav class="start-dock" aria-label="Start menu">
         <button id="garageTitle" type="button"><span aria-hidden="true">🚐</span>Garage</button>
         <a href="./score.html"><span aria-hidden="true">🎫</span>Score card</a>
@@ -144,7 +142,7 @@
   </div>
   <div id="leaderboard" class="screen" hidden>
     <div class="plate">
-      <div class="plate-top"><div class="eyebrow">Freetown drivers</div><h1>Leaders</h1></div>
+      <div class="plate-top"><div class="eyebrow">Freetown drivers</div><h1>Best scores</h1></div>
       <div class="plate-body">
         <label for="leaderPeriod">Period</label>
         <select id="leaderPeriod"><option value="today">Today</option><option value="week">This week</option><option value="all">All time</option></select>
@@ -155,7 +153,7 @@
     </div>
   </div>
   <div id="missionsPanel" class="screen" hidden>
-    <div class="plate"><div class="plate-top"><div class="eyebrow">Your route goals</div><h1>Missions</h1></div><div class="plate-body"><p id="missionsText"></p><button id="missionsClose" class="secondaryBtn">Back</button></div></div>
+    <div class="plate"><div class="plate-top"><div class="eyebrow">Your route goals</div><h1>Goals</h1></div><div class="plate-body"><p id="missionsText"></p><button id="missionsClose" class="secondaryBtn">Back</button></div></div>
   </div>
   <div id="playerGarage" class="screen" hidden>
     <div class="plate">

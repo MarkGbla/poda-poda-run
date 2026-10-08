@@ -52,7 +52,6 @@
 .start-side-button:hover { background: #1a5146; transform: translateY(-2px); }
 .start-side-button b { margin-left: auto; color: #ffcd52; font-size: 20px; }
 .start-bottom { position: absolute; bottom: max(14px, env(safe-area-inset-bottom, 0px)); left: 50%; transform: translateX(-50%); width: min(620px, calc(100vw - 36px)); display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; }
-.start-kicker { padding: 5px 11px; border-radius: 99px; background: #09231ad9; color: #f6d36c; font: 900 10px/1 var(--body); letter-spacing: .16em; box-shadow: 0 2px 8px #0005; }
 .start-route { display: grid; grid-template-columns: 48px minmax(0,1fr) 48px; align-items: stretch; gap: 3px; width: min(470px, 100%); min-height: 70px; box-sizing: border-box; padding: 5px; border: 3px solid #f5efd9; border-radius: 17px; background: #086443; box-shadow: 0 6px 0 #052d2e, 0 12px 24px #031a2280; }
 .start-route button { border: 0; border-radius: 11px; color: #fff; background: #064b3a; font: 900 36px/1 var(--body); }
 .start-route button:hover { background: #14825a; }
@@ -60,11 +59,23 @@
 .start-route small { color: #9fe6b9; }
 .start-route strong { display: block; font: 900 clamp(18px, 2.4vw, 25px)/1.05 var(--body); letter-spacing: -.04em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .start-route-copy > span { display: block; font-size: 11px; font-weight: 700; color: #fff1c8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.start-drive { display: flex; justify-content: center; align-items: center; gap: 12px; width: min(360px, 100%); min-height: 51px; padding: 8px 18px; border: 2px solid #fff3c6; border-radius: 13px; background: #ffc846; color: #12312a; box-shadow: 0 5px 0 #a35b1e, 0 9px 22px #0006; font: 900 clamp(21px, 3vw, 29px)/1 var(--body); letter-spacing: -.04em; }
-.start-drive:hover { background: #ffe184; transform: translateY(-2px); }
-.start-drive span { font-size: 30px; }
-#title .start-tip { margin: 0; color: #fff9e9; font-size: 12px; font-weight: 800; text-shadow: 0 2px 5px #06171a; }
-.start-tip span { color: #d3ebda; }
+#title #startBtn {
+  display: block;
+  width: min(360px, 100%);
+  min-height: 64px;
+  margin: 4px 0;
+  padding: 8px 16px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #fff;
+  box-shadow: none;
+  font: 900 clamp(30px, 4.6vw, 42px)/1.15 var(--body);
+  letter-spacing: -.04em;
+  text-shadow: 0 3px 0 #122126, 0 5px 12px #000b;
+}
+#title #startBtn:hover { color: #fff3cc; transform: translateY(-2px); }
+#title #startBtn:active { transform: translateY(1px); }
 .start-dock { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; width: min(470px, 100%); margin-top: 2px; }
 .start-dock button, .start-dock a { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; min-height: 62px; box-sizing: border-box; border: 2px solid #16382d; border-radius: 12px; background: #fff6df; color: #16332d; box-shadow: 0 5px 0 #b4a687; font: 900 15px/1.1 var(--body); text-decoration: none; }
 .start-dock button:hover, .start-dock a:hover { background: #fff; transform: translateY(-2px); }
@@ -102,9 +113,7 @@
   .start-route button { font-size: 29px; }
   .start-route strong { font-size: 19px; }
   .start-route-copy > span { font-size: 10px; }
-  .start-drive { width: min(330px, 100%); min-height: 45px; font-size: 22px; }
-  #title .start-tip { font-size: 10px; }
-  .start-tip span { display: none; }
+  #title #startBtn { width: min(330px, 100%); min-height: 57px; font-size: 34px; }
   .start-dock { width: min(390px, 100%); gap: 6px; }
   .start-dock button, .start-dock a { min-height: 51px; font-size: 12px; }
   .start-dock span { font-size: 19px; }
@@ -113,8 +122,7 @@
   .start-side { top: 76px; }
   .start-feature { display: none; }
   .start-bottom { gap: 4px; }
-  .start-kicker, #title .start-tip { display: none; }
   .start-route { min-height: 53px; }
-  .start-drive { min-height: 43px; }
+  #title #startBtn { min-height: 48px; font-size: 30px; margin: 0; }
   .start-dock button, .start-dock a { min-height: 43px; flex-direction: row; }
 }
