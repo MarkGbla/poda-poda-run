@@ -36,7 +36,7 @@ import './services/ApiClient.js';
 (() => {
 'use strict';
 const THREE = window.THREE;
-const gameURL = 'https://poda-poda-run.markgbla16.workers.dev/';
+const gameURL = 'https://podapodarun.com/';
 
 /* ================================================================
    Local flavour — everything Freetown lives here
