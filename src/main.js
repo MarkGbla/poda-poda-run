@@ -1,5 +1,6 @@
 import '../base-ui.css';
 import '../drive-ui.css';
+import '../start-ui.css';
 import './simulation/systems/RoadContactSystem.js';
 import { registerEasternDistricts } from './data/EasternDistricts.js';
 import { createScorePoster } from './ui/ScorePoster.js';
@@ -945,9 +946,24 @@ $('missionsTitle').addEventListener('click', () => { $('missionsText').textConte
 $('missionsClose').addEventListener('click', () => $('missionsPanel').hidden=true);
 for(const button of document.querySelectorAll('[data-garage-category]')) button.addEventListener('click',()=>{ garageCategory=button.dataset.garageCategory; document.querySelectorAll('[data-garage-category]').forEach(b=>b.setAttribute('aria-pressed',String(b===button))); document.querySelectorAll('[data-garage-detail]').forEach(p=>p.hidden=p.dataset.garageDetail!==garageCategory); });
 $('chooseRide').addEventListener('click', openPlayerGarage);
+const titleHelp = $('titleHelp');
+$('titleHow').addEventListener('click', () => titleHelp.showModal());
+$('titleHelpClose').addEventListener('click', () => titleHelp.close());
+titleHelp.addEventListener('click', event => { if (event.target === titleHelp) titleHelp.close(); });
 for(const [id,v] of Object.entries(CONFIG.vehicles)) $('rideSelect').add(new Option(v.name,id));
 for(const [id,r] of Object.entries(CONFIG.routes)) $('routeSelect').add(new Option(r.name+' · '+r.difficulty,id));
 $('rideSelect').value=vehicleId; $('routeSelect').value=routeId;
+function updateTitleRoute() {
+ const ids=Object.keys(CONFIG.routes), index=ids.indexOf(routeId), route=CONFIG.routes[routeId];
+ $('titleRouteIndex').textContent=`ROUTE ${String(index+1).padStart(2,'0')} / ${String(ids.length).padStart(2,'0')} · ${route.difficulty.toUpperCase()}`;
+ $('titleRouteName').textContent=route.name;
+ $('titleRouteStops').textContent=`${route.stops[0]} → ${route.stops.at(-1)} · ${route.stops.length} stops`;
+}
+for (const [id, direction] of [['titleRoutePrev',-1],['titleRouteNext',1]]) $(id).addEventListener('click',()=>{
+ const ids=Object.keys(CONFIG.routes), index=ids.indexOf(routeId);
+ $('routeSelect').value=ids[(index+direction+ids.length)%ids.length];
+ $('routeSelect').dispatchEvent(new Event('change'));
+});
 function selectionDetails() {
  const v=CONFIG.vehicles[vehicleId],r=CONFIG.routes[routeId];
  $('rideStats').textContent=`${v.capacity} passengers · Speed ${Math.round(v.maxSpeed*3.6)} km/h · Handling ${Math.round(v.handling/18*5)}/5 · Braking ${Math.round(v.braking/30*5)}/5`;
@@ -956,8 +972,9 @@ function selectionDetails() {
  for(const panel of document.querySelectorAll('[data-garage-detail]'))panel.hidden=vehicleId!=='poda'||panel.dataset.garageDetail!==garageCategory;
 }
 selectionDetails();
+updateTitleRoute();
 $('rideSelect').addEventListener('change',e=>{vehicleId=e.target.value;store.set('poda-vehicle',vehicleId);buildPlayer();selectionDetails();});
-$('routeSelect').addEventListener('change',e=>{routeId=e.target.value;store.set('poda-route',routeId);DATA.route=CONFIG.routes[routeId].stops;buildPlayer();selectionDetails();});
+$('routeSelect').addEventListener('change',e=>{routeId=e.target.value;store.set('poda-route',routeId);DATA.route=CONFIG.routes[routeId].stops;buildPlayer();selectionDetails();updateTitleRoute();});
 for(const [id,key,fallback] of [['cargoSelect','poda-cargo','loaded'],['wheelSelect','poda-wheels','steel'],['hornSelect','poda-horn','classic'],['bodyPaint','poda-paint','default'],['rackSelect','poda-rack','fitted'],['bodyTrim','poda-trim','standard'],['routeBoard','poda-board','auto'],['stickerSelect','poda-sticker','none']]){
  $(id).value=store.get(key)||fallback;
  $(id).addEventListener('change',e=>{store.set(key,e.target.value);buildPlayer();if(id==='hornSelect')horn();});
@@ -1273,7 +1290,7 @@ function endRun(completed = false) {
   }, 900);
 }
 function isFinished() { return state === 'over' || state === 'complete'; }
-function showBest() { const b = +store.get('poda-best-score') || 0; $('bestTitle').textContent = b ? 'Best score: ' + b.toLocaleString('en-US') : ''; }
+function showBest() { const b = +store.get('poda-best-score') || 0; $('bestTitle').textContent = b ? b.toLocaleString('en-US') : '—'; }
 function buildPlayer() {
   if (player) {
     scene.remove(player);

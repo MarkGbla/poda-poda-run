@@ -63,34 +63,37 @@
   </div>
 
   <div id="title" class="screen">
-    <div class="plate">
-      <div class="plate-top">
-        <div class="eyebrow">Freetown · Salone</div>
-        <h1>Poda-Poda<br>Run</h1>
-      </div>
-      <div class="flag"><i></i><i></i><i></i></div>
-      <div class="plate-body">
-        <p id="tagline">Choose your ride and work a shift across Freetown. Load passengers at every stop, drop them where they're going, and don't hit anybody. <em>Tek tem!</em></p>
-        <div class="controls">
-          <kbd>← →</kbd><span>Change lane (or swipe)</span>
-          <kbd>↑ / W</kbd><span>Gas. Hold to go faster</span>
-          <kbd>↓ / S</kbd><span>Brake. Stop inside the yellow box to load passengers</span>
-          <kbd>Space</kbd><span>Arcade hop over low debris (or swipe up). Vehicles and people cannot be jumped.</span>
-          <kbd>H</kbd><span>Horn. Goats and hawkers will move</span>
-          <kbd>AUX</kbd><span>Plays when the poda moves. Load your own songs from your phone</span>
-        </div>
-        <div class="row">
-          <button class="btn" id="startBtn" type="button">▶ Start Shift</button>
-          <button class="secondaryBtn" id="chooseRide" type="button">Choose ride & route</button>
-          <button class="secondaryBtn" id="garageTitle" type="button">Garage</button>
-          <button class="secondaryBtn" id="missionsTitle" type="button">Missions</button>
-          <button class="secondaryBtn" id="leadersTitle" type="button">Leaderboard</button>
-          <a class="secondaryBtn" href="./score.html">Create your score card</a>
-          <span class="best" id="bestTitle"></span>
-        </div>
-        <div class="proto">SMALL SMALL · BIG JOURNEY</div>
-      </div>
+    <header class="start-topbar">
+      <div class="start-brand"><span class="start-brand-mark" aria-hidden="true">▰</span><div><small>Freetown, Sierra Leone</small><strong>Poda-Poda <em>Run</em></strong></div></div>
+      <div class="start-topbar-right"><div class="start-radio" aria-label="Featured soundtrack"><span aria-hidden="true">♫</span><div><small>ON THE ROAD</small><strong>Drizilik · Sabi Road</strong></div></div><div class="start-best"><small>BEST SCORE</small><strong id="bestTitle">—</strong></div></div>
+    </header>
+
+    <div class="start-side start-side-left">
+      <div class="start-feature"><span class="start-feature-icon" aria-hidden="true">🚐</span><div><small>THE STREETS ARE CALLING</small><strong>Freetown is yours</strong><span>Pick up passengers. Make every stop count.</span></div></div>
+      <button class="start-side-button" id="chooseRide" type="button"><span aria-hidden="true">🗺️</span><span><small>CHOOSE YOUR ROAD</small><strong>Routes & rides</strong></span><b aria-hidden="true">↗</b></button>
     </div>
+
+    <div class="start-side start-side-right">
+      <button class="start-side-button" id="missionsTitle" type="button"><span aria-hidden="true">⭐</span><span><small>YOUR SHIFT GOALS</small><strong>Missions</strong></span><b aria-hidden="true">↗</b></button>
+      <button class="start-side-button" id="leadersTitle" type="button"><span aria-hidden="true">🏆</span><span><small>LOCAL SCORES</small><strong>Leaders</strong></span><b aria-hidden="true">↗</b></button>
+    </div>
+
+    <div class="start-bottom">
+      <div class="start-kicker">SMALL SMALL · BIG JOURNEY</div>
+      <div class="start-route" aria-label="Selected route">
+        <button id="titleRoutePrev" type="button" aria-label="Previous route">‹</button>
+        <div class="start-route-copy"><small id="titleRouteIndex">ROUTE 01</small><strong id="titleRouteName">Loading route…</strong><span id="titleRouteStops"></span></div>
+        <button id="titleRouteNext" type="button" aria-label="Next route">›</button>
+      </div>
+      <button class="start-drive" id="startBtn" type="button">Tap to drive <span aria-hidden="true">→</span></button>
+      <p class="start-tip">Drive the route, collect fares and bring everyone home. <span>← → steer · ↑ gas · ↓ brake · Space hop</span></p>
+      <nav class="start-dock" aria-label="Start menu">
+        <button id="garageTitle" type="button"><span aria-hidden="true">🚐</span>Garage</button>
+        <a href="./score.html"><span aria-hidden="true">🎫</span>Score card</a>
+        <button id="titleHow" type="button"><span aria-hidden="true">🛣️</span>How to play</button>
+      </nav>
+    </div>
+    <dialog id="titleHelp" class="start-help"><h2>Work a shift across Freetown</h2><p>Stop inside the yellow box to load passengers, then drop them at their stops. Keep your poda in good shape and finish the route.</p><dl><dt>Steer</dt><dd>← → or swipe sideways</dd><dt>Gas / brake</dt><dd>↑ / ↓ or the on-screen pedals</dd><dt>Hop / horn</dt><dd>Space / H, or swipe up to hop</dd></dl><button id="titleHelpClose" type="button">Got it</button></dialog>
   </div>
 
   <div id="over" class="screen" hidden>
