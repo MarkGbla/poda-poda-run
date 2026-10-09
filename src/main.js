@@ -1194,7 +1194,7 @@ function syncSoundButtons() {
   $('pauseMute').querySelector('b').textContent = muted ? 'Sound off' : 'Sound on';
   $('pauseMute').setAttribute('aria-pressed', String(!muted));
 }
-function toggleMute() { muted = !muted; store.set('poda-muted', muted ? '1' : '0'); syncSoundButtons(); }
+function toggleMute() { muted = !muted; store.set('poda-muted', muted ? '1' : '0'); syncSoundButtons(); if (muted) pauseRunAudio(); }
 syncSoundButtons();
 function tone(f, dur, type, vol, f2, when = 0) {
   const a = audio(); if (!a || muted) return;
@@ -1307,17 +1307,29 @@ function engineTick() {
   engine.gain.gain.setTargetAtTime(on ? (S.speed < 0.5 ? 0.22 : 0.3 + 0.35 * sp) : 0, t, 0.2);
   engine.lp.frequency.setTargetAtTime(700 + 2600 * sp + (pushing ? 500 : 0), t, 0.2);
 }
-document.addEventListener('visibilitychange', () => {
+function pauseRunAudio() {
+  aux.el.pause();
+  aux.el.volume = 0;
   if (!ac) return;
-  if (document.hidden) ac.suspend(); else ac.resume();   // stop all sound and audio work in background tabs
+  for (const gain of [music.gain?.gain, engine.gain?.gain]) {
+    if (!gain) continue;
+    gain.cancelScheduledValues(ac.currentTime);
+    gain.setValueAtTime(0, ac.currentTime);
+  }
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { pauseRunAudio(); ac?.suspend(); }
+  else if (state === 'play') ac?.resume();
 });
+addEventListener('pagehide', () => { pauseRunAudio(); ac?.suspend(); });
 
 function auxLabel() {
   const t = aux.list.length ? aux.list[aux.i].name : 'Salone Riddim';
   $('auxBtn').innerHTML = '♪ <b></b> · AUX'; $('auxBtn').querySelector('b').textContent = t;
 }
 aux.el.addEventListener('ended', () => {
-  if (!aux.list.length) return; aux.i = (aux.i + 1) % aux.list.length; aux.el.src = aux.list[aux.i].url; aux.el.play().catch(() => {}); auxLabel(); });
+  if (!aux.list.length || state !== 'play' || muted || document.hidden) return;
+  aux.i = (aux.i + 1) % aux.list.length; aux.el.src = aux.list[aux.i].url; aux.el.play().catch(() => {}); auxLabel(); });
 $('auxBtn').addEventListener('click', () => $('auxFile').click());
 $('auxFile').addEventListener('change', e => {
   const files = [...e.target.files]; if (!files.length) return;
@@ -1472,6 +1484,7 @@ function startRun() {
 function pauseRun() {
   if (state !== 'play') return;
   changeState('paused');
+  pauseRunAudio();
   inputManager.release();
   $('pause').hidden = false; $('touch').hidden = true;
   $('radio').inert = true;
@@ -1488,6 +1501,7 @@ function pauseRun() {
 }
 function resumeRun() {
   if (state !== 'paused' || $('leaveRun').open) return;
+  ac?.resume();
   changeState('play'); clock.reset(); canvas.focus();
   $('pause').hidden = true; $('touch').hidden = false;
   $('radio').inert = false;
@@ -1497,6 +1511,7 @@ function resumeRun() {
 function endRun(completed = false) {
   if (state === 'over' || state === 'complete') return;
   changeState(completed ? 'complete' : 'over');
+  pauseRunAudio();
   S.over = true; S.completed = completed;
   inputManager.release();
   $('pause').hidden = true; $('radio').hidden = true; $('touch').hidden = true; $('hud').hidden = true;
@@ -1534,6 +1549,7 @@ function endRun(completed = false) {
 }
 function returnHome() {
   if (!isFinished()) return;
+  pauseRunAudio();
   runSerial++;
   changeState('attract');
   inputManager.release();

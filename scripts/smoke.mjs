@@ -133,6 +133,14 @@ async function main() {
 
   const browser = await chromium.launch({ executablePath });
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+  await page.addInitScript(() => {
+    const NativeAudio = window.Audio;
+    window.Audio = function (...args) {
+      const element = new NativeAudio(...args);
+      window.__podaSmokeMusic = element;
+      return element;
+    };
+  });
 
   const errors = [];
   const cdnRequests = [];
@@ -172,6 +180,28 @@ async function main() {
     await page.waitForTimeout(2500);
     check('HUD visible after start', await page.isVisible('#hud'));
     await shot('02-start.png');
+
+    /* --- audio lifecycle: pause, resume, and leave a run --- */
+    await page.waitForFunction(() => window.__podaSmokeMusic && !window.__podaSmokeMusic.paused, null, { timeout: 5000 }).catch(() => {});
+    check('music starts during a run', await page.evaluate(() => !!window.__podaSmokeMusic && !window.__podaSmokeMusic.paused));
+    await safeClick('#pauseBtn', 'pause the run');
+    check('music pauses with the game', await page.evaluate(() => window.__podaSmokeMusic?.paused === true));
+    await safeClick('#resumeBtn', 'resume the run');
+    await page.waitForFunction(() => window.__podaSmokeMusic && !window.__podaSmokeMusic.paused, null, { timeout: 5000 }).catch(() => {});
+    check('music resumes with the game', await page.evaluate(() => window.__podaSmokeMusic?.paused === false));
+    await safeClick('#pauseBtn', 'pause before leaving');
+    await safeClick('#homePause', 'open leave confirmation');
+    await safeClick('#leaveConfirm', 'leave the run');
+    check('music stops on Home', await page.evaluate(() => window.__podaSmokeMusic?.paused === true));
+    await safeClick('#startBtn', 'start another shift');
+    await page.waitForFunction(() => window.__podaSmokeMusic && !window.__podaSmokeMusic.paused, null, { timeout: 5000 }).catch(() => {});
+    await page.evaluate(() => addEventListener('pagehide', () => {
+      sessionStorage.setItem('poda-smoke-pagehide-paused', String(window.__podaSmokeMusic?.paused));
+    }));
+    await page.goto(url + '?stats', { waitUntil: 'load' });
+    check('music stops when the page closes', await page.evaluate(() => sessionStorage.getItem('poda-smoke-pagehide-paused') === 'true'));
+    await page.waitForSelector('#startBtn', { timeout: 20000 });
+    await safeClick('#startBtn', 'start the driving check');
 
     /* --- drive --- */
     await page.focus('#c');
