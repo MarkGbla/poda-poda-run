@@ -99,9 +99,10 @@
 #shareStatus:empty { display:none; }
 #shareStatus { margin:0; font-size:12px; line-height:1.4; color:#fff4d7; }
 @media (hover:hover) and (pointer:fine) {
-  #touch { display:none; }
-  .play-speed, #radio #auxBtn { bottom:18px; }
-  #hint { bottom:80px; }
+  #touch { display:flex; }
+  #touch button, body.hud-three #touch button { opacity:1; }
+  .play-speed, #radio #auxBtn { bottom:112px; }
+  #hint { bottom:180px; }
 }
 @media (max-width:600px) {
   .play-score { left:10px; }
