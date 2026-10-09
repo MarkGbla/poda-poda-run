@@ -17,7 +17,7 @@
  *               storage uninvited is not a reasonable thing to do to someone
  *               paying by the megabyte.
  */
-const VERSION = 'poda-v1';
+const VERSION = 'poda-v2';
 const SHELL = `${VERSION}-shell`;
 const RUNTIME = `${VERSION}-runtime`;
 
@@ -67,6 +67,32 @@ self.addEventListener('activate', event => {
 const isAudio = url => isAudioPath(url.pathname);
 const isHashedAsset = url => url.pathname.includes('/assets/');
 
+/**
+ * Cache-first for fingerprinted assets.
+ *
+ * `ignoreVary` is doing real work here, not defensive padding. Responses are
+ * stored with whatever `Vary` header the server sent — `Accept-Encoding` is
+ * typical — and a later request whose headers differ even slightly will miss a
+ * perfectly good entry. The URL already carries a content hash, so matching on
+ * the URL alone is both safe and what we actually mean.
+ */
+async function assetFirst(request) {
+  const hit = await caches.match(request, { ignoreVary: true });
+  if (hit) return hit;
+  try {
+    const response = await fetch(request);
+    if (response.ok) {
+      const copy = response.clone();
+      caches.open(RUNTIME).then(c => c.put(request, copy)).catch(() => {});
+    }
+    return response;
+  } catch (err) {
+    const retry = await caches.match(request, { ignoreVary: true, ignoreSearch: true });
+    if (retry) return retry;
+    throw err;
+  }
+}
+
 self.addEventListener('fetch', event => {
   const { request } = event;
   if (request.method !== 'GET') return;
@@ -79,15 +105,7 @@ self.addEventListener('fetch', event => {
 
   // Fingerprinted assets: serve from cache, fetch once, keep.
   if (sameOrigin && isHashedAsset(url)) {
-    event.respondWith(
-      caches.match(request).then(hit => hit || fetch(request).then(response => {
-        if (response.ok) {
-          const copy = response.clone();
-          caches.open(RUNTIME).then(c => c.put(request, copy)).catch(() => {});
-        }
-        return response;
-      })),
-    );
+    event.respondWith(assetFirst(request));
     return;
   }
 
@@ -100,7 +118,8 @@ self.addEventListener('fetch', event => {
           caches.open(SHELL).then(c => c.put(request, copy)).catch(() => {});
           return response;
         })
-        .catch(() => caches.match(request).then(hit => hit || caches.match('./index.html'))),
+        .catch(() => caches.match(request, { ignoreVary: true })
+          .then(hit => hit || caches.match('./index.html', { ignoreVary: true }))),
     );
     return;
   }
@@ -115,6 +134,6 @@ self.addEventListener('fetch', event => {
         }
         return response;
       })
-      .catch(() => caches.match(request)),
+      .catch(() => caches.match(request, { ignoreVary: true })),
   );
 });
