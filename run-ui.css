@@ -1,0 +1,183 @@
+/* Shared visual language for driving, pause and the trip receipt. */
+#hud { display:block; inset:0; padding:0; filter:none; color:#fff7df; font-family:var(--body); }
+.play-score { position:absolute; top:max(12px,env(safe-area-inset-top)); left:18px; display:flex; flex-direction:column; align-items:start; }
+.play-score > .lbl { font-size:9px; color:#fff7df; opacity:1; }
+#liveScore { font:400 clamp(28px,4.7vw,46px)/1.05 var(--display); letter-spacing:-.065em; text-shadow:2px 3px 0 #14232b,-1px -1px 0 #14232b; }
+#cashChip { margin-top:5px; border-radius:6px; padding:3px 7px; background:#ffcf48; color:#142b27; font-size:11px; font-weight:800; box-shadow:0 3px 0 #192527; }
+.play-route { position:absolute; top:max(20px,env(safe-area-inset-top)); left:25%; right:25%; display:flex; gap:4px; }
+.play-route > span { flex:1; min-width:0; text-align:center; }
+.play-route i { display:block; height:8px; border-radius:3px; background:#16282c88; border:1px solid #fff5; }
+.play-route small { display:block; margin-top:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:9px; font-weight:800; text-shadow:0 2px 3px #000; }
+.play-route .passed i { background:#32b77a; }
+.play-route .current i { background:#ffca39; border-color:#fff2bc; box-shadow:0 0 0 2px #122c29; }
+.play-route .current small { color:#ffe164; }
+.play-left { position:absolute; top:112px; left:18px; width:164px; display:flex; flex-direction:column; gap:7px; }
+.play-passengers, #hud #stopCard, .play-condition, .play-coins, #hud #dist, .play-speed { background:#16272bc4; border:1px solid #fff6; border-radius:13px; box-shadow:0 3px 0 #06171d77; }
+.play-passengers { display:flex; align-items:center; gap:6px; padding:7px 9px; }
+.play-passengers > span { font-size:23px; }
+.play-passengers b { font-size:22px; line-height:1; }
+.play-passengers small { font-size:10px; }
+#hud #stopCard { display:flex; flex-direction:column; align-items:start; gap:2px; width:auto; min-width:0; padding:9px 11px; text-align:left; }
+#hud #stopCard .lbl { font-size:9px; letter-spacing:.02em; }
+#hud #stopName { font:800 17px/1.1 var(--body); color:#ffda57; white-space:normal; }
+#hud #stopDist { font:800 12px var(--body); align-self:start; color:#fff4d7; }
+#hud #stopBar { align-self:stretch; height:4px; margin:4px 0; overflow:hidden; background:#fff4; }
+#hud #stopBar i { background:#ffcb45; }
+#hud #stopDrop { display:block; margin:0; font-size:9px; color:#fff7df; }
+.play-condition { padding:7px 9px; }
+#hud #body { display:flex; gap:4px; margin:0 0 4px; width:100%; max-width:none; background:transparent; height:5px; }
+#hud #body i { float:none; flex:1; border-radius:2px; }
+.play-condition small { display:block; font-size:10px; line-height:1.2; }
+.play-right { position:absolute; top:76px; right:18px; display:flex; flex-direction:column; align-items:end; gap:7px; }
+.play-coins { display:flex; align-items:center; gap:7px; padding:5px 10px; }
+.play-coins > span { font-size:24px; }
+.play-coins b { font:400 23px var(--display); }
+#hud #dist { display:block; padding:5px 12px; font-weight:800; font-size:12px; }
+.play-speed { position:absolute; left:18px; bottom:126px; padding:9px 14px; }
+#hud #kmh { color:#fff7df; font:800 20px/1 var(--body); }
+#radio { inset:0; max-width:none; pointer-events:none; display:block; }
+#radio button { pointer-events:auto; }
+#radio #pauseBtn, #radio #mute { position:absolute; top:max(12px,env(safe-area-inset-top)); width:46px; height:46px; padding:0; border:2px solid #172a28; border-radius:12px; background:#fff5dc; color:#142b27; box-shadow:0 4px 0 #071a1c; font:900 23px var(--body); }
+#radio #pauseBtn { right:18px; }
+#radio #mute { right:72px; }
+#radio #auxBtn { position:absolute; right:18px; bottom:126px; max-width:220px; min-height:42px; font-size:12px; border:2px solid #071c20; border-radius:10px; box-shadow:0 4px 0 #071c20; background:#16352eee; }
+#hint { bottom:210px; max-width:calc(100vw - 40px); white-space:normal; text-align:center; }
+#pause { z-index:30; place-items:center; padding:16px; background:#07192066; }
+.pause-card { box-sizing:border-box; width:min(430px,100%); max-height:calc(100dvh - 32px); overflow-y:auto; padding:24px; border:3px solid #172822; border-radius:22px; background:#fff6df; color:#21332c; box-shadow:0 8px 0 #091b2399,0 22px 60px #0006; }
+.pause-card h1 { font:400 clamp(31px,6vw,45px)/1 var(--display); text-align:center; margin:0 0 22px; color:#ffc83d; text-shadow:2px 3px 0 #162721,-1px -1px 0 #162721; transform:rotate(-3deg); }
+.pause-goals { display:flex; flex-direction:column; margin-bottom:23px; }
+.pause-goals > div { display:grid; grid-template-columns:1fr auto; gap:6px 10px; padding:10px 0; border-top:2px dashed #21332c26; font-size:12px; font-weight:800; }
+.pause-goals b { color:#76684e; }
+.pause-goals .goal-done label { color:#148049; }
+.pause-goals progress { grid-column:1/-1; appearance:none; width:100%; height:9px; border:2px solid #25332b; border-radius:9px; overflow:hidden; background:#e7d9b5; }
+.pause-goals progress::-webkit-progress-bar { background:#e7d9b5; }
+.pause-goals progress::-webkit-progress-value { background:#25ac65; }
+.pause-goals progress::-moz-progress-bar { background:#25ac65; }
+.pause-actions, .result-nav { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:9px; }
+.pause-actions button, .result-nav button { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px; min-height:73px; padding:9px 4px; border:2px solid #172b27; border-radius:13px; background:#fffaf0; color:#172b27; box-shadow:0 5px 0 #a2936c; font:800 14px var(--body); cursor:pointer; }
+.pause-actions span, .result-nav span { font-size:28px; line-height:1; }
+.pause-actions b { font:inherit; }
+.game-primary { min-height:51px; border:2px solid #283328; border-radius:13px; background:#ffcd42; color:#162a25; box-shadow:0 5px 0 #a57916; font:400 21px var(--display); cursor:pointer; }
+#resumeBtn { width:100%; margin-top:20px; }
+.pause-options { margin-top:18px; font-size:12px; }
+.pause-options summary, .result-details summary { cursor:pointer; font-weight:800; padding:8px 0; }
+.pause-options label { display:block; margin:8px 0 3px; }
+.pause-options select { padding:8px; margin-right:6px; color:#172a27; background:#fff; border:1px solid #778778; border-radius:8px; }
+#pause button:focus-visible, #over button:focus-visible, #over summary:focus-visible { outline:3px solid #118958; outline-offset:4px; }
+.leave-run { width:min(340px,calc(100vw - 64px)); padding:24px; border:3px solid #17382a; border-radius:18px; color:#18372d; background:#fff6df; font:600 15px/1.4 var(--body); }
+.leave-run::backdrop { background:#071720c9; }
+.leave-run h2 { margin:0; }
+.leave-run button { width:100%; margin-top:9px; padding:12px; border:2px solid #18372d; border-radius:9px; background:#fff6df; color:#18372d; font:800 15px var(--body); cursor:pointer; }
+#leaveConfirm { background:#ffcf4a; }
+#over { display:block; z-index:10; box-sizing:border-box; overflow:auto; padding:18px 16px 26px; background:linear-gradient(#091a25aa,#06131cce); touch-action:pan-y; }
+.result-sheet { max-width:510px; margin:auto; display:flex; flex-direction:column; align-items:stretch; gap:12px; text-align:center; }
+.result-location { align-self:center; padding:6px 14px; background:#086243; color:#fffbe7; border:2px solid #f8f2d8; border-radius:8px; font:800 13px var(--body); box-shadow:0 4px 0 #061a20; }
+#over #overTitle { margin:3px 0 -9px; font:400 clamp(24px,5.5vw,37px)/1.15 var(--display); color:#ff7551; text-shadow:2px 3px 0 #071f25; }
+#over.run-complete #overTitle { color:#85e6a4; }
+.result-score { color:#ffce43; font:400 clamp(48px,9vw,68px)/1 var(--display); letter-spacing:-.065em; text-shadow:3px 5px 0 #081b21; }
+.result-best { margin-top:-8px; color:#fff4d2; font-size:12px; font-weight:800; }
+.result-summary { font-size:12px; font-weight:700; line-height:1.4; color:#fff7df; margin:0; }
+.trip-ticket { color:#263a2e; background:#fff5d9; padding:15px 13px 19px; border-block:3px dashed #8d8265; box-shadow:0 8px 18px #0005; }
+.trip-ticket header { display:flex; justify-content:space-between; font-size:11px; padding-bottom:10px; margin-bottom:12px; border-bottom:2px dashed #93856b55; }
+.trip-ticket header b { color:#137b4c; }
+.ticket-stats { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); }
+.ticket-stats > div { display:flex; flex-direction:column; align-items:center; gap:4px; border-right:1px solid #b2a38477; }
+.ticket-stats > div:last-child { border:0; }
+.ticket-stats span { font-size:23px; }
+.ticket-stats b { font:800 clamp(15px,3.8vw,23px)/1.2 var(--body); }
+.ticket-stats small { font-size:10px; font-weight:800; }
+.result-details { background:#0d252ccf; border:1px solid #fff4; border-radius:10px; color:#fff4d7; font-size:12px; text-align:left; padding:0 12px; }
+.result-details-body { display:flex; flex-direction:column; gap:9px; padding:8px 0 13px; }
+.result-details p { margin:0; line-height:1.5; }
+.result-stop-stats { display:flex; gap:12px; flex-wrap:wrap; }
+.result-stop-stats b { display:block; font-size:18px; }
+.result-nav button { min-height:60px; }
+.result-nav span { font-size:24px; }
+.result-actions { display:grid; grid-template-columns:1fr 2fr; gap:12px; margin-top:4px; }
+#shareScore { border:2px solid #183128; border-radius:12px; background:#fff7df; color:#16372b; font:800 19px var(--body); cursor:pointer; }
+#shareScore:disabled { opacity:.6; cursor:wait; }
+#shareStatus:empty { display:none; }
+#shareStatus { margin:0; font-size:12px; line-height:1.4; color:#fff4d7; }
+@media (hover:hover) and (pointer:fine) {
+  #touch { display:none; }
+  .play-speed, #radio #auxBtn { bottom:18px; }
+  #hint { bottom:80px; }
+}
+@media (max-width:600px) {
+  .play-score { left:10px; }
+  #liveScore { font-size:30px; }
+  .play-route { left:110px; right:120px; gap:2px; top:22px; }
+  .play-route small { display:none; }
+  .play-route .current small { display:block; position:absolute; left:0; right:0; text-align:center; margin-top:7px; }
+  .play-left { top:99px; left:10px; width:137px; }
+  .play-passengers { padding:5px 7px; }
+  .play-passengers b { font-size:19px; }
+  #hud #stopName { font-size:15px; }
+  .play-right { right:10px; }
+  #radio #pauseBtn { right:10px; }
+  #radio #mute { right:62px; }
+  .play-speed { left:10px; }
+  .pause-card { padding:19px; }
+  .pause-actions button, .result-nav button { font-size:12px; }
+  .result-sheet { gap:11px; }
+  #over { padding-top:12px; }
+}
+@media (max-height:500px) {
+  .play-left { top:82px; gap:4px; }
+  .play-condition { display:none; }
+  #hud #stopCard { padding:5px 9px; }
+  .pause-card { padding:16px 22px; }
+  .pause-card h1 { font-size:28px; margin-bottom:10px; }
+  .pause-goals { margin-bottom:12px; }
+  .pause-goals > div { padding:6px 0; }
+  .pause-actions button { min-height:52px; }
+  .pause-actions span { font-size:20px; }
+  #resumeBtn { margin-top:12px; }
+}
+/* Portrait phones put every thumb control in the lower right and leave the road open. */
+@media (max-width:700px) and (orientation:portrait) {
+  #hud .play-route { top:auto; bottom:calc(env(safe-area-inset-bottom,0px) + 12px); left:11px; right:11px; gap:3px; }
+  #hud .play-route i { height:7px; }
+  #hud .play-route small, #hud .play-route .current small { display:none; }
+  #hud .play-left { top:calc(env(safe-area-inset-top,0px) + 77px); width:min(142px,42vw); gap:5px; }
+  #hud .play-passengers { min-height:36px; }
+  #hud #stopCard { padding:7px 9px; }
+  #hud .play-condition { padding:5px 8px; }
+  #hud .play-condition small { font-size:9px; }
+  #hud .play-right { top:calc(env(safe-area-inset-top,0px) + 69px); }
+  #radio #auxBtn { display:none; }
+  #touch { display:block; position:absolute; inset:0; padding:0; pointer-events:none; }
+  #touch .pedals { display:contents; }
+  #touch button { opacity:1; border-radius:17px; border-width:3px; box-shadow:0 5px 0 #071b1f; }
+  #touch #gasBtn { position:absolute; right:11px; bottom:calc(env(safe-area-inset-bottom,0px) + 49px); width:90px; height:127px; color:#fff; background:#138044; border-color:#15392b !important; }
+  #touch #brakeBtn { position:absolute; right:111px; bottom:calc(env(safe-area-inset-bottom,0px) + 49px); width:70px; height:76px; color:#fff; background:#be3f35; border-color:#4a2020 !important; }
+  #touch #hornBtn { position:absolute; right:117px; bottom:calc(env(safe-area-inset-bottom,0px) + 137px); width:61px; height:57px; color:#173024; background:#ffcf41; border-color:#273625 !important; }
+  #touch #hornBtn span { font-size:19px; }
+  #touch #hornBtn b { font-size:10px; }
+  #touch #gasBtn span, #touch #brakeBtn span { color:inherit; }
+  #hud .play-speed { left:auto; right:14px; bottom:calc(env(safe-area-inset-bottom,0px) + 190px); border:0; box-shadow:none; background:transparent; padding:5px; }
+  #hud #kmh { font-size:17px; text-shadow:0 2px 3px #081b1b; }
+  #hint { bottom:calc(env(safe-area-inset-bottom,0px) + 240px); max-width:min(260px,calc(100vw - 70px)); padding:6px 10px; font-size:11px; }
+}
+@media (orientation:landscape) and (max-height:500px) {
+  #hud .play-route { top:12px; left:160px; right:130px; }
+  #hud .play-route small { display:none; }
+  #hud .play-left { top:70px; }
+  #radio #auxBtn { display:none; }
+  #touch { display:flex; }
+  #touch button { width:62px; height:62px; }
+  #hud .play-speed { bottom:80px; }
+  #hint { bottom:90px; }
+}
+@media (max-width:360px) and (orientation:portrait) {
+  #radio #pauseBtn, #radio #mute { width:40px; height:40px; }
+  #radio #mute { right:56px; }
+  #hud .play-score { top:8px; }
+  #hud #liveScore { font-size:26px; }
+  #hud .play-left { top:68px; width:131px; }
+  #hud #stopName { font-size:13px; }
+  #hud .play-right { top:63px; }
+  #touch #gasBtn { width:80px; height:111px; }
+  #touch #brakeBtn { right:100px; width:65px; }
+  #touch #hornBtn { right:104px; }
+}

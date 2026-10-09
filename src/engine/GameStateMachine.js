@@ -8,8 +8,8 @@
     attract: ['play', 'garage'],
     play: ['paused', 'over', 'complete'],
     paused: ['play', 'over'],
-    over: ['play', 'garage'],
-    complete: ['play', 'garage'],
+    over: ['play', 'garage', 'attract'],
+    complete: ['play', 'garage', 'attract'],
     garage: ['play', 'attract', 'over', 'complete'],
   });
   return class GameStateMachine {

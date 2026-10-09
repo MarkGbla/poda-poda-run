@@ -17,7 +17,7 @@
 <meta name="twitter:description" content="Drive through Freetown, pick up passengers and take on the streets of Sierra Leone. Play Poda-Poda Run now!">
 <meta name="twitter:image" content="https://podapodarun.com/social/poda-poda-run-preview-v4.jpg">
 <meta name="twitter:image:alt" content="Poda-Poda Run: a green, white and blue minibus on a Freetown street at sunset, with Sierra Leone's coastal hills behind it.">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Outfit:wght@400;600;800&display=swap">
@@ -28,21 +28,15 @@
   <canvas id="c" tabindex="0" aria-label="Freetown driving scene"></canvas>
 
   <div id="hud" hidden>
-    <div class="hud-l">
-      <div class="chip instrument" id="cashChip"><span class="instrument-icon" aria-hidden="true">Le</span><span class="instrument-copy"><span class="lbl">Earnings</span><span class="big" id="cash">Le 0</span></span></div>
-      <div class="chip instrument" id="speedChip"><span class="instrument-icon speed-icon" aria-hidden="true">◉</span><span class="instrument-copy"><span class="lbl">Speed · <span id="dist">0.00 km</span></span><span class="big" id="kmh">0 km/h</span></span></div>
+    <div class="play-score"><span class="lbl">Score</span><strong id="liveScore">0</strong><span id="cashChip">Fares <b id="cash">Le 0</b></span></div>
+    <div id="routeRail" class="play-route" aria-label="Route stops"></div>
+    <div class="play-left">
+      <div class="play-passengers"><span aria-hidden="true">🚐</span><b id="paxN">0/14</b><small>on board</small><div id="seats" hidden></div></div>
+      <div id="stopCard"><span class="lbl">Next stop</span><strong id="stopName">—</strong><span id="stopDist">0 m</span><div id="stopBar"><i></i></div><small id="stopDrop">0 to drop</small></div>
+      <div class="play-condition"><span id="body"><i></i><i></i></span><small id="bodyLabel">Bus ready</small></div>
     </div>
-    <div id="stopCard">
-      <span class="stop-pin" aria-hidden="true">●</span>
-      <div class="stop-info"><span class="lbl">Next stop</span><div id="stopName">—</div></div>
-      <strong id="stopDist">0 m</strong>
-      <div id="stopBar"><i></i><span class="progress-start"></span><span class="progress-end"></span><span class="progress-bus" aria-hidden="true">▣</span></div>
-      <div id="stopDrop">0 to drop</div>
-    </div>
-    <div class="hud-r">
-      <div class="chip instrument"><span class="instrument-icon people-icon" aria-hidden="true">●●</span><span class="instrument-copy"><span class="big" id="paxN">0/14</span><span class="lbl">Passengers</span></span><div id="seats" hidden></div></div>
-      <div class="chip instrument"><span class="instrument-icon bus-icon" aria-hidden="true">▣</span><span class="instrument-copy"><span class="lbl">Body condition</span><span id="body"><i></i><i></i></span></span></div>
-    </div>
+    <div class="play-right"><span class="play-coins"><span aria-hidden="true">🪙</span><b id="liveCoins">0</b></span><span id="dist">0 m</span></div>
+    <div id="speedChip" class="play-speed"><strong id="kmh">0 km/h</strong></div>
   </div>
 
   <div id="hint" hidden></div>
@@ -56,11 +50,11 @@
     </div>
   </div>
   <div id="radio" hidden>
-    <button id="pauseBtn" type="button">Pause</button>
+    <button id="pauseBtn" type="button" aria-label="Pause game" title="Pause game">Ⅱ</button>
     <button id="auxBtn" type="button" title="Play your own songs from this device">♪ <b>Drizilik – Sabi Road</b> · AUX</button>
     <button id="mute" type="button">Sound: on</button>
-    <input id="auxFile" type="file" accept="audio/*" multiple hidden>
   </div>
+  <input id="auxFile" type="file" accept="audio/*" multiple hidden>
 
   <div id="title" class="screen">
     <header class="start-topbar">
@@ -94,52 +88,54 @@
     <dialog id="titleHelp" class="start-help"><h2>Work a shift across Freetown</h2><p>Stop inside the yellow box to load passengers, then drop them at their stops. Keep your poda in good shape and finish the route.</p><dl><dt>Steer</dt><dd>← → or swipe sideways</dd><dt>Gas / brake</dt><dd>↑ / ↓ or the on-screen pedals</dd><dt>Hop / horn</dt><dd>Space / H, or swipe up to hop</dd></dl><button id="titleHelpClose" type="button">Got it</button></dialog>
   </div>
 
-  <div id="over" class="screen" hidden>
-    <div class="plate">
-      <div class="plate-top">
-        <div class="eyebrow" id="overEyebrow">Run over</div>
-        <h1 id="overTitle">Di poda<br>don jam!</h1>
-      </div>
-      <div class="flag"><i></i><i></i><i></i></div>
-      <div class="plate-body">
-        <p id="overLine"></p>
-        <div class="stats">
-          <div><span>Driving score</span><b id="sScore">0</b></div>
-          <div><span>Leones made</span><b id="sCash">Le 0</b></div>
-          <div><span>Road coins</span><b id="sCoins">0</b></div>
-          <div><span>Distance</span><b id="sDist">0 km</b></div>
-          <div><span>Passengers dropped</span><b id="sPax">0</b></div>
-          <div><span>Stops made</span><b id="sStops">0</b></div>
-          <div><span>Stops missed</span><b id="sMissed">0</b></div>
-          <div><span>Perfect stops</span><b id="sPerfect">0</b></div>
+  <div id="over" class="screen" hidden aria-labelledby="overTitle">
+    <div class="result-sheet">
+      <div id="overEyebrow" class="result-location">Run over</div>
+      <h1 id="overTitle">Run over!</h1>
+      <strong id="sScore" class="result-score">0</strong>
+      <span id="bestOver" class="result-best"></span>
+      <p id="overLine" class="result-summary"></p>
+      <section class="trip-ticket" aria-label="Trip receipt">
+        <header><b>Poda-Poda Run</b><span>Your trip</span></header>
+        <div class="ticket-stats">
+          <div><span aria-hidden="true">🪙</span><b id="sCoins">0</b><small>Coins</small></div>
+          <div><span aria-hidden="true">🛣️</span><b id="sDist">0 km</b><small>Distance</small></div>
+          <div><span aria-hidden="true">👤</span><b id="sPax">0</b><small>Dropped off</small></div>
+          <div><span aria-hidden="true">💵</span><b id="sCash">Le 0</b><small>Fares</small></div>
         </div>
-        <p id="scoreBreakdown"></p>
-        <p id="missionSummary"></p>
-        <label for="driverName">Your driver name</label><input id="driverName" maxlength="24" placeholder="Salone driver" autocomplete="nickname">
-        <div class="row"><button class="secondaryBtn" id="saveScore">Save score</button><button class="secondaryBtn" id="shareScore">Share my score · 4K</button><button class="secondaryBtn" id="downloadPoster">Download PNG</button><button class="secondaryBtn" id="copyLink">Copy game link</button></div>
-        <p id="shareStatus" aria-live="polite"></p>
-        <p id="onlineStatus" aria-live="polite"></p>
-        <div class="ticket-line"></div>
-        <div class="row">
-          <button class="btn" id="againBtn" type="button">Go again</button>
-          <button class="secondaryBtn" id="garageResult" type="button">Garage</button>
-          <button class="secondaryBtn" id="leadersResult" type="button">Leaderboard</button>
-          <span class="best" id="bestOver"></span>
+      </section>
+      <details class="result-details"><summary>Trip details & save score</summary>
+        <div class="result-details-body">
+          <div class="result-stop-stats"><span>Stops made <b id="sStops">0</b></span><span>Stops missed <b id="sMissed">0</b></span><span>Perfect stops <b id="sPerfect">0</b></span></div>
+          <p id="scoreBreakdown"></p><p id="missionSummary"></p>
+          <label for="driverName">Your name</label><input id="driverName" maxlength="24" placeholder="Salone driver" autocomplete="nickname">
+          <p id="onlineStatus"></p>
+          <div class="row"><button class="secondaryBtn" id="saveScore" type="button">Save score</button><button class="secondaryBtn" id="downloadPoster" type="button">Download picture</button><button class="secondaryBtn" id="copyLink" type="button">Copy game link</button></div>
         </div>
-      </div>
+      </details>
+      <nav class="result-nav" aria-label="After your run">
+        <button id="homeResult" type="button"><span aria-hidden="true">🏠</span>Home</button>
+        <button id="leadersResult" type="button"><span aria-hidden="true">🏆</span>Best scores</button>
+        <button id="garageResult" type="button"><span aria-hidden="true">🚐</span>Garage</button>
+      </nav>
+      <div class="result-actions"><button id="shareScore" type="button">↑ Share</button><button id="againBtn" class="game-primary" type="button">Go again</button></div>
+      <p id="shareStatus" aria-live="polite"></p>
     </div>
   </div>
-  <div id="pause" class="screen" hidden>
-    <div class="plate">
-      <div class="plate-top"><div class="eyebrow">Shift paused</div><h1>Tek tem!</h1></div>
-      <div class="plate-body">
-        <p>Your place on the route is saved until you resume.</p>
-        <label for="qualityProfile">Graphics quality</label>
-        <select id="qualityProfile"><option value="auto">Automatic</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select>
-        <div class="row"><button class="btn" id="resumeBtn" type="button">Resume</button><button class="btn" id="restartBtn" type="button">Restart shift</button></div>
-      </div>
+  <div id="pause" class="screen" hidden role="dialog" aria-modal="true" aria-labelledby="pauseTitle">
+    <div class="pause-card">
+      <h1 id="pauseTitle">Paused</h1>
+      <div id="pauseGoals" class="pause-goals" aria-label="Your goals"></div>
+      <nav class="pause-actions" aria-label="Pause menu">
+        <button id="homePause" type="button"><span aria-hidden="true">🏠</span>Home</button>
+        <button id="pauseMute" type="button"><span aria-hidden="true">🔊</span><b>Sound on</b></button>
+        <button id="pauseMusic" type="button"><span aria-hidden="true">♫</span>Your music</button>
+      </nav>
+      <button id="resumeBtn" class="game-primary" type="button">Continue</button>
+      <details class="pause-options"><summary>More options</summary><label for="qualityProfile">Graphics</label><select id="qualityProfile"><option value="auto">Automatic</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select><button class="secondaryBtn" id="restartBtn" type="button">Start again</button></details>
     </div>
   </div>
+  <dialog id="leaveRun" class="leave-run" aria-labelledby="leaveRunTitle"><h2 id="leaveRunTitle">End this run?</h2><p>Your score and goals will be kept on this device.</p><button id="keepDriving" type="button">Stay here</button><button id="leaveConfirm" type="button">End run & go home</button></dialog>
   <div id="leaderboard" class="screen" hidden>
     <div class="plate">
       <div class="plate-top"><div class="eyebrow">Freetown drivers</div><h1>Best scores</h1></div>

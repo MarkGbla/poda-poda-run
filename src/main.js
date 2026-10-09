@@ -1,6 +1,7 @@
 import '../base-ui.css';
 import '../drive-ui.css';
 import '../start-ui.css';
+import '../run-ui.css';
 import './simulation/systems/RoadContactSystem.js';
 import { registerEasternDistricts } from './data/EasternDistricts.js';
 import { createScorePoster } from './ui/ScorePoster.js';
@@ -889,7 +890,7 @@ function laneTo(d) {
   S.lane = clamp(S.lane + d, 0, 2);
 }
 addEventListener('keydown', e => {
-  if(e.target?.matches?.('input,select,textarea,button'))return;
+  if(e.target?.closest?.('input,select,textarea,button,summary,a,dialog'))return;
   if (e.repeat && !['ArrowDown', 's', 'S', ' ', 'ArrowUp', 'w', 'W'].includes(e.key)) return;
   if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') {
     if (state === 'play' || state === 'paused') inputManager.command('PAUSE');
@@ -939,6 +940,26 @@ $('againBtn').addEventListener('click', startRun);
 $('pauseBtn').addEventListener('click', pauseRun);
 $('resumeBtn').addEventListener('click', resumeRun);
 $('restartBtn').addEventListener('click', startRun);
+$('homeResult').addEventListener('click', returnHome);
+$('homePause').addEventListener('click', () => $('leaveRun').showModal());
+$('keepDriving').addEventListener('click', () => $('leaveRun').close());
+$('leaveConfirm').addEventListener('click', () => {
+  $('leaveRun').close();
+  if (state !== 'paused') return;
+  endRun(); returnHome();
+});
+$('pauseMute').addEventListener('click', toggleMute);
+$('pauseMusic').addEventListener('click', () => $('auxFile').click());
+$('pause').addEventListener('keydown', event => {
+  if ($('leaveRun').open) return;
+  if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); resumeRun(); }
+  if (event.key === 'Tab') {
+    const buttons = [...$('pause').querySelectorAll('button, select, summary')].filter(el => el.getClientRects().length);
+    const first=buttons[0], last=buttons.at(-1);
+    if (event.shiftKey && document.activeElement===first) { event.preventDefault(); last.focus(); }
+    else if (!event.shiftKey && document.activeElement===last) { event.preventDefault(); first.focus(); }
+  }
+});
 $('qualityProfile').addEventListener('change', e => { qualityManager.setProfile(e.target.value); store.set('poda-quality', e.target.value); });
 $('leadersTitle').addEventListener('click', showLeaderboard);
 $('leadersResult').addEventListener('click', showLeaderboard);
@@ -1009,8 +1030,16 @@ function horn() {
    ================================================================ */
 let ac = null, muted = store.get('poda-muted') === '1';
 function audio() { if (!ac) { try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} } return ac; }
-function toggleMute() { muted = !muted; store.set('poda-muted', muted ? '1' : '0'); $('mute').textContent = 'Sound: ' + (muted ? 'off' : 'on'); }
-$('mute').textContent = 'Sound: ' + (muted ? 'off' : 'on');
+function syncSoundButtons() {
+  $('mute').textContent = muted ? '🔇' : '🔊';
+  $('mute').setAttribute('aria-label', muted ? 'Turn sound on' : 'Turn sound off');
+  $('mute').title = muted ? 'Turn sound on' : 'Turn sound off';
+  $('pauseMute').querySelector('span').textContent = muted ? '🔇' : '🔊';
+  $('pauseMute').querySelector('b').textContent = muted ? 'Sound off' : 'Sound on';
+  $('pauseMute').setAttribute('aria-pressed', String(!muted));
+}
+function toggleMute() { muted = !muted; store.set('poda-muted', muted ? '1' : '0'); syncSoundButtons(); }
+syncSoundButtons();
 function tone(f, dur, type, vol, f2, when = 0) {
   const a = audio(); if (!a || muted) return;
   const t = a.currentTime + when, o = a.createOscillator(), g = a.createGain();
@@ -1168,12 +1197,32 @@ function renderBody() {
   const shaken = S.time - S.hitAt < 4 && state === 'play';
   const els = $('body').children;
   els[0].className = shaken ? 'off' : ''; els[1].className = '';
+  $('bodyLabel').textContent = shaken ? 'Careful! Another hit ends the run' : 'Bus ready';
+}
+let lastRouteRail = '';
+function renderRouteRail() {
+  const key = routeId + ':' + S.stopIdx;
+  if (key === lastRouteRail) return;
+  lastRouteRail = key;
+  $('routeRail').replaceChildren(...DATA.route.map((name, index) => {
+    const stop = document.createElement('span');
+    stop.className = index < S.stopIdx ? 'passed' : index === S.stopIdx ? 'current' : '';
+    if(index === S.stopIdx) stop.setAttribute('aria-current','step');
+    stop.title = name;
+    const bar=document.createElement('i'), label=document.createElement('small');
+    label.textContent=name; stop.append(bar,label); return stop;
+  }));
+  $('routeRail').setAttribute('aria-label', `Next stop ${Math.min(S.stopIdx+1,DATA.route.length)} of ${DATA.route.length}: ${stopName(S.stopIdx)}`);
 }
 let lastHud = '';
 function updateHud() {
-  const key = [Math.round(S.cash), Math.round(S.dist / 10), Math.round(S.speed), S.stopIdx, Math.round(S.toStop / 5), S.pax.length, S.time - S.hitAt < 4].join('|');
+  const score = RULES.calculateScore(S);
+  const key = [score, S.coins, Math.round(S.cash), Math.round(S.dist / 10), Math.round(S.speed), S.stopIdx, Math.round(S.toStop / 5), S.pax.length, S.time - S.hitAt < 4].join('|');
   if (key === lastHud) return; lastHud = key;
   hudEls.cash.textContent = fmtLe(S.cash);
+  $('liveScore').textContent = score.toLocaleString('en-US');
+  $('liveCoins').textContent = S.coins.toLocaleString('en-US');
+  renderRouteRail();
   hudEls.dist.textContent = (S.dist / 1000).toFixed(2) + ' km';
   hudEls.kmh.textContent = Math.round(S.speed * 3.6) + ' km/h';
   hudEls.stopName.textContent = stopName(S.stopIdx);
@@ -1234,10 +1283,14 @@ function startRun() {
   garageHidden = [];
   $('playerGarage').hidden = true;
   $('pause').hidden = true;
+  $('leaveRun').close();
+  $('radio').inert = false;
+  $('hud').inert = false;
+  lastHud = ''; lastRouteRail = '';
   $('title').hidden = true; $('over').hidden = true; $('hud').hidden = false; $('touch').hidden = false; $('radio').hidden = false;
   musicInit(); engineInit();
   popsEl.innerHTML = '';
-  pop('Swipe to steer · swipe up / Space to hop low debris');
+  pop('Swipe to steer · tap GAS to drive');
   updateHud();
   canvas.focus?.();
   events.emit('game:start', { route: DATA.route });
@@ -1248,18 +1301,34 @@ function pauseRun() {
   changeState('paused');
   inputManager.release();
   $('pause').hidden = false; $('touch').hidden = true;
+  $('radio').inert = true;
+  $('hud').inert = true;
+  $('pauseGoals').replaceChildren(...missions.status().map(mission => {
+    const row=document.createElement('div'), label=document.createElement('label'), amount=document.createElement('b'), progress=document.createElement('progress');
+    progress.id='pause-goal-'+mission.id; progress.max=mission.target; progress.value=mission.progress;
+    label.htmlFor=progress.id; label.textContent=mission.label;
+    amount.textContent=mission.complete?'Done':`${mission.progress}/${mission.target}`;
+    row.className=mission.complete?'goal-done':''; row.append(label,amount,progress); return row;
+  }));
+  syncSoundButtons(); $('resumeBtn').focus();
   events.emit('game:pause', {});
 }
 function resumeRun() {
-  if (state !== 'paused') return;
+  if (state !== 'paused' || $('leaveRun').open) return;
   changeState('play'); clock.reset(); canvas.focus();
   $('pause').hidden = true; $('touch').hidden = false;
+  $('radio').inert = false;
+  $('hud').inert = false;
   events.emit('game:resume', {});
 }
 function endRun(completed = false) {
   if (state === 'over' || state === 'complete') return;
   changeState(completed ? 'complete' : 'over');
   S.over = true; S.completed = completed;
+  inputManager.release();
+  $('pause').hidden = true; $('radio').hidden = true; $('touch').hidden = true; $('hud').hidden = true;
+  $('shareStatus').textContent = '';
+  $('over').classList.toggle('run-complete', completed);
   const result = RULES.summarize(S);
   lastResult={...result,id:crypto.randomUUID(),date:Date.now(),vehicle:vehicleId,route:routeId};resultVehicle=CONFIG.vehicles[vehicleId].name;resultRoute=CONFIG.routes[routeId].name;
   if(resultModel)resultModel.traverse(m=>{if(m.isMesh)m.geometry.dispose();});
@@ -1267,7 +1336,7 @@ function endRun(completed = false) {
   events.emit(completed ? 'route:complete' : 'game:over', result);
   const best = Math.max(+store.get('poda-best-score') || 0, result.score);
   store.set('poda-best-score', String(best));
-  $('overTitle').innerHTML = completed ? 'Shift<br>complete!' : pick(DATA.over).replace(' don ', '<br>don ');
+  $('overTitle').textContent = completed ? 'Route complete!' : 'Di poda don jam!';
   $('overEyebrow').textContent = completed ? CONFIG.routes[routeId].name : 'Jammed near ' + stopName(S.stopIdx);
   $('overLine').textContent = `Delivered ${result.passengersDelivered} passenger${result.passengersDelivered === 1 ? '' : 's'} across ${(result.distance / 1000).toFixed(2)} km. ${result.stopsServed} stops served · ${result.stopsMissed} missed.`;
   $('sScore').textContent = result.score.toLocaleString('en-US');
@@ -1280,14 +1349,29 @@ function endRun(completed = false) {
   $('sPerfect').textContent = result.perfectStops;
   $('scoreBreakdown').textContent = `Score: ${result.passengersDelivered} delivered × 100 + ${result.stopsServed} stops × 30 + ${result.perfectStops} perfect × 40 + ${Math.floor(result.distance / 20)} distance${completed ? ' + 300 finish' : ''} − ${result.stopsMissed} missed × 25 − ${result.collisions} collisions × 40 (minimum 0).`;
   $('missionSummary').textContent = 'Route goals: ' + missions.status().map(mission => `${mission.label} ${mission.progress}/${mission.target}`).join(' · ');
-  $('onlineStatus').textContent = 'This-device leaderboard · enter a name to save your run.';
+  const saved = saveLocalScore();
+  $('onlineStatus').textContent = saved ? 'Saved on this device. You can change your name and save again.' : 'You can download a picture of this run even when browser storage is unavailable.';
   const finishedSerial = runSerial;
   $('bestOver').textContent = 'Best score: ' + best.toLocaleString('en-US');
   setHint('');
   setTimeout(() => {
     if (runSerial !== finishedSerial || (state !== 'over' && state !== 'complete')) return;
-    $('over').hidden = false; $('touch').hidden = true;
+    $('over').hidden = false; $('over').scrollTop=0; $('againBtn').focus({preventScroll:true});
   }, 900);
+}
+function returnHome() {
+  if (!isFinished()) return;
+  runSerial++;
+  changeState('attract');
+  inputManager.release();
+  resetRun();
+  for(const ch of chunks) fillChunk(ch);
+  for(const id of ['over','pause','hud','touch','radio','playerGarage','leaderboard','missionsPanel']) $(id).hidden=true;
+  $('radio').inert=false;
+  if(workshop)workshop.visible=false;
+  world.visible=true; transitionTime=0;
+  setHint(''); popsEl.replaceChildren();
+  $('title').hidden=false; showBest(); $('startBtn').focus();
 }
 function isFinished() { return state === 'over' || state === 'complete'; }
 function showBest() { const b = +store.get('poda-best-score') || 0; $('bestTitle').textContent = b ? b.toLocaleString('en-US') : '—'; }
@@ -1357,6 +1441,7 @@ function saveLocalScore(){
  const name=$('driverName').value.trim().slice(0,24)||'Salone driver';store.set('poda-driver-name',name);
  const rows=readScores().filter(r=>r.id!==lastResult.id);rows.push({...lastResult,name});rows.sort((a,b)=>b.score-a.score);const saved=store.set('poda-scores-v2',JSON.stringify(rows.slice(0,100)));
  $('shareStatus').textContent=saved?'Score saved on this device.':'Browser storage is unavailable. You can still download your poster.';
+ return saved;
 }
 $('driverName').value=store.get('poda-driver-name')||'';
 $('saveScore').addEventListener('click',saveLocalScore);
