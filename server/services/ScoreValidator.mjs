@@ -1,9 +1,10 @@
-export const GAME_VERSION = '0.1.0';
+export const GAME_VERSION = '0.2.0';
 
 export function calculateOfficialScore(run) {
   return Math.max(0, Math.round(
     run.passengersDelivered * 100 + run.stopsServed * 30 + run.perfectStops * 40 +
-    Math.floor(run.distance / 20) + (run.completed ? 300 : 0) -
+    Math.floor(run.distance / 20) + Math.floor(run.style || 0) +
+    (run.completed ? 300 : 0) -
     run.stopsMissed * 25 - run.collisions * 40
   ));
 }
@@ -27,5 +28,10 @@ export function validateRun(summary, durationMs, serverElapsedMs) {
   if (summary.passengersOnboard > 14 || summary.passengersDelivered > summary.stopsServed * 14) return 'Invalid passenger count';
   if (summary.earnings !== summary.passengersDelivered * 6 + summary.perfectStops * 5) return 'Invalid earnings';
   if (summary.coins > summary.distance / 2 + 20) return 'Invalid coin count';
+  // Style accrues at most (MAX_MULTIPLIER - 1) per metre, so it cannot exceed distance.
+  // Absent on runs from before the multiplier existed, which score it as zero.
+  const style = summary.style ?? 0;
+  if (!Number.isSafeInteger(style) || style < 0) return 'Invalid style';
+  if (style > summary.distance + 50) return 'Invalid style score';
   return null;
 }

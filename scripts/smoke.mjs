@@ -152,6 +152,11 @@ async function main() {
 
   const shot = name => SHOTS && page.screenshot({ path: join(SHOTS, name) });
   const num = s => parseFloat(String(s).replace(/[^\d.]/g, '')) || 0;
+  /** Record an unreachable control as a failed check rather than aborting the run. */
+  const safeClick = async (selector, label) => {
+    try { await page.click(selector, { timeout: 8000 }); return true; }
+    catch { check(label || `click ${selector}`, false, 'not clickable'); return false; }
+  };
 
   try {
     /* --- title --- */
@@ -163,7 +168,7 @@ async function main() {
     await shot('01-title.png');
 
     /* --- start a shift --- */
-    await page.click('#startBtn');
+    await safeClick('#startBtn', 'start the shift');
     await page.waitForTimeout(2500);
     check('HUD visible after start', await page.isVisible('#hud'));
     await shot('02-start.png');
@@ -198,21 +203,29 @@ async function main() {
         `${metrics.geometries} geometries · ${metrics.textures} textures · DPR ${metrics.ratio.toFixed(2)} · ${metrics.fps} fps`);
     }
 
-    /* --- pause / resume --- */
-    await page.keyboard.press('Escape');
-    await page.waitForTimeout(800);
-    check('pause screen opens', await page.isVisible('#pause'));
-    await shot('05-pause.png');
-    await page.click('#resumeBtn');
-    await page.waitForTimeout(600);
-    check('pause screen closes', !(await page.isVisible('#pause')));
+    /* --- pause / resume ---
+     * Only reachable while a run is still live. A crash during the drive above is
+     * ordinary play, not a smoke failure, so report it and skip rather than throw. */
+    const crashed = await page.isVisible('#over');
+    if (crashed) {
+      notes.push('  ---- run ended during the drive; pause/resume not exercised this time');
+    } else {
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(800);
+      if (check('pause screen opens', await page.isVisible('#pause'))) {
+        await shot('05-pause.png');
+        await safeClick('#resumeBtn', 'resume the run');
+        await page.waitForTimeout(600);
+        check('pause screen closes', !(await page.isVisible('#pause')));
+      }
+    }
 
     /* --- menus (from a fresh load, which is where they are reachable) --- */
     await page.goto(url, { waitUntil: 'load' });
     await page.waitForSelector('#startBtn', { timeout: 20000 });
     await page.waitForTimeout(4500);
 
-    await page.click('#garageTitle');
+    await safeClick('#garageTitle', 'garage opens');
     await page.waitForTimeout(2000);
     check('garage opens', await page.isVisible('#playerGarage'));
     const rides = await page.$$eval('#rideSelect option', o => o.length);
@@ -220,16 +233,16 @@ async function main() {
     check('all rides listed', rides === 5, `${rides} rides`);
     check('all routes listed', routes === 4, `${routes} routes`);
     await shot('06-garage.png');
-    await page.click('#garageClose');
+    await safeClick('#garageClose', 'garage closes');
     await page.waitForTimeout(600);
 
-    await page.click('#missionsTitle');
+    await safeClick('#missionsTitle', 'missions open');
     await page.waitForTimeout(800);
     check('missions open', (await page.textContent('#missionsText')).includes('/'));
-    await page.click('#missionsClose');
+    await safeClick('#missionsClose', 'missions close');
     await page.waitForTimeout(400);
 
-    await page.click('#leadersTitle');
+    await safeClick('#leadersTitle', 'leaderboard opens');
     await page.waitForTimeout(2000);
     check('leaderboard opens', await page.isVisible('#leaderboard'));
     check('leaderboard reports a state',

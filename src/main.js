@@ -1,6 +1,7 @@
 import '../base-ui.css';
 import '../drive-ui.css';
 import '../start-ui.css';
+import '../run-ui.css';
 import './simulation/systems/RoadContactSystem.js';
 import { registerEasternDistricts } from './data/EasternDistricts.js';
 import { createScorePoster } from './ui/ScorePoster.js';
@@ -57,6 +58,7 @@ const DATA = {
     drop:   [['Wan bel na ya!', 'Stop here!'], ['Drop mi ya.', 'Drop me here.'], ['Gi mi mi chenj!', 'Give me my change!']],
     miss:   [['Lef! Lef! Driver, lef!', 'Stop! Stop! Driver, stop!'], ['Eh bo! Wan bel na ya!', 'Ah, man! I said stop here!']],
     stumble:[['Tek tem!', 'Careful!'], ['Eh bo!', 'Ah, man!'], ['A de kam dong!', "I'm getting off!"], ['Wahala!', 'Trouble!']],
+    reverse:[['Driver, yu don pas am!', "Driver, you've gone past it!"], ['Bak small! Bak small!', 'Back up a little!']],
     horn:   [['Komot na rod!', 'Out of the way!']],
     perfect:[['A tel God tenki!', 'Thank God!']],
   },
@@ -704,6 +706,9 @@ function resetRun() {
     perfectStops: 0, missedStops: 0, collisions: 0, lost: 0, completed: false,
     stopIdx: 1, toStop: 260, legLen: 260, nextRow: 60,
     pax: [], hitAt: -99, invuln: 0, dwell: 0, dwellPlan: null, shake: 0, magnet: 0, time: 0, over: false,
+    // style multiplier, overshoot recovery and body condition
+    style: 0, fastTime: 0, multiplier: 1,
+    reversing: false, reverseSpeed: RULES.REVERSE_SPEED, condition: RULES.CONDITION,
   });
   // start half-full; each passenger knows where they're going
   for (let i = 0; i < Math.ceil(CAP / 2); i++) S.pax.push(randi(0, 2));
@@ -869,9 +874,14 @@ function hit(o) {
   if (state !== 'play') return;
   S.collisions++;
   events.emit('collision', { type: o.flat ? 'pothole' : 'traffic', collisions: S.collisions });
-  const second = S.time - S.hitAt < 4;
+  // The poda carries a condition of 3. A knock costs one; a knock while still
+  // shaken costs two, so carelessness still ends a shift without a single
+  // mistimed overtake doing it.
+  const damage = RULES.collisionDamage({ condition: S.condition, time: S.time, hitAt: S.hitAt });
+  S.condition = damage.remaining;
   S.hitAt = S.time; S.invuln = 1.0;
-  if (second) { endRun(); return; }
+  S.fastTime = 0; S.multiplier = 1;
+  if (damage.fatal) { endRun(); return; }
   S.speed *= 0.4;
   const bail = Math.min(S.pax.length, randi(1, 3));
   S.pax.splice(0, bail);
@@ -889,7 +899,7 @@ function laneTo(d) {
   S.lane = clamp(S.lane + d, 0, 2);
 }
 addEventListener('keydown', e => {
-  if(e.target?.matches?.('input,select,textarea,button'))return;
+  if(e.target?.closest?.('input,select,textarea,button,summary,a,dialog'))return;
   if (e.repeat && !['ArrowDown', 's', 'S', ' ', 'ArrowUp', 'w', 'W'].includes(e.key)) return;
   if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') {
     if (state === 'play' || state === 'paused') inputManager.command('PAUSE');
@@ -913,21 +923,24 @@ addEventListener('keyup', e => {
 });
 function jump() { if(state==='play' && !demo && window.PODA_JumpSystem.start(S)) {events.emit('jump:start',{});tone(220,.12,'sine',.08,420);} }
 let touch0 = null;
-canvas.addEventListener('pointerdown', e => { if(e.isPrimary && !input.brake && !input.gas) {canvas.setPointerCapture(e.pointerId);touch0 = { x: e.clientX, y: e.clientY, time:performance.now(), id:e.pointerId };} });
+canvas.addEventListener('pointerdown', e => {
+  if (state !== 'play' || touch0) return;
+  canvas.setPointerCapture(e.pointerId);
+  touch0 = { x: e.clientX, y: e.clientY, time:performance.now(), id:e.pointerId };
+});
 canvas.addEventListener('pointerup', e => {
   if (!touch0 || touch0.id!==e.pointerId) return;
   const dx = e.clientX - touch0.x, dy = e.clientY - touch0.y, elapsed=performance.now()-touch0.time; touch0 = null;
-  if(input.brake || input.gas) return;
   if(window.PODA_JumpSystem.swipe(dx,dy,elapsed)) {jump();return;}
   if (Math.abs(dx) > 30 && Math.abs(dx) > Math.abs(dy)) inputManager.command(dx > 0 ? 'MOVE_RIGHT' : 'MOVE_LEFT');
   else if (dy > 40) inputManager.command('BRAKE_PULSE');
 });
-canvas.addEventListener('pointercancel',()=>touch0=null);
+canvas.addEventListener('pointercancel', e => { if (touch0?.id === e.pointerId) touch0 = null; });
 const brakeBtn = $('brakeBtn');
-brakeBtn.addEventListener('pointerdown', e => { touch0=null; e.preventDefault(); inputManager.command('BRAKE'); brakeBtn.classList.add('down'); hud3d?.control('brake', true); });
+brakeBtn.addEventListener('pointerdown', e => { e.preventDefault(); inputManager.command('BRAKE'); brakeBtn.classList.add('down'); hud3d?.control('brake', true); });
 for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) brakeBtn.addEventListener(ev, () => { inputManager.command('BRAKE', false); brakeBtn.classList.remove('down'); hud3d?.control('brake', false); });
 const gasBtn = $('gasBtn');
-gasBtn.addEventListener('pointerdown', e => { touch0=null; e.preventDefault(); inputManager.command('ACCELERATE'); gasBtn.classList.add('down'); hud3d?.control('gas', true); });
+gasBtn.addEventListener('pointerdown', e => { e.preventDefault(); inputManager.command('ACCELERATE'); gasBtn.classList.add('down'); hud3d?.control('gas', true); });
 for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) gasBtn.addEventListener(ev, () => { inputManager.command('ACCELERATE', false); gasBtn.classList.remove('down'); hud3d?.control('gas', false); });
 addEventListener('blur', () => inputManager.release());
 const hornBtn = $('hornBtn');
@@ -939,6 +952,26 @@ $('againBtn').addEventListener('click', startRun);
 $('pauseBtn').addEventListener('click', pauseRun);
 $('resumeBtn').addEventListener('click', resumeRun);
 $('restartBtn').addEventListener('click', startRun);
+$('homeResult').addEventListener('click', returnHome);
+$('homePause').addEventListener('click', () => $('leaveRun').showModal());
+$('keepDriving').addEventListener('click', () => $('leaveRun').close());
+$('leaveConfirm').addEventListener('click', () => {
+  $('leaveRun').close();
+  if (state !== 'paused') return;
+  endRun(); returnHome();
+});
+$('pauseMute').addEventListener('click', toggleMute);
+$('pauseMusic').addEventListener('click', () => $('auxFile').click());
+$('pause').addEventListener('keydown', event => {
+  if ($('leaveRun').open) return;
+  if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); resumeRun(); }
+  if (event.key === 'Tab') {
+    const buttons = [...$('pause').querySelectorAll('button, select, summary')].filter(el => el.getClientRects().length);
+    const first=buttons[0], last=buttons.at(-1);
+    if (event.shiftKey && document.activeElement===first) { event.preventDefault(); last.focus(); }
+    else if (!event.shiftKey && document.activeElement===last) { event.preventDefault(); first.focus(); }
+  }
+});
 $('qualityProfile').addEventListener('change', e => { qualityManager.setProfile(e.target.value); store.set('poda-quality', e.target.value); });
 $('leadersTitle').addEventListener('click', showLeaderboard);
 $('leadersResult').addEventListener('click', showLeaderboard);
@@ -1009,8 +1042,16 @@ function horn() {
    ================================================================ */
 let ac = null, muted = store.get('poda-muted') === '1';
 function audio() { if (!ac) { try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} } return ac; }
-function toggleMute() { muted = !muted; store.set('poda-muted', muted ? '1' : '0'); $('mute').textContent = 'Sound: ' + (muted ? 'off' : 'on'); }
-$('mute').textContent = 'Sound: ' + (muted ? 'off' : 'on');
+function syncSoundButtons() {
+  $('mute').textContent = muted ? '🔇' : '🔊';
+  $('mute').setAttribute('aria-label', muted ? 'Turn sound on' : 'Turn sound off');
+  $('mute').title = muted ? 'Turn sound on' : 'Turn sound off';
+  $('pauseMute').querySelector('span').textContent = muted ? '🔇' : '🔊';
+  $('pauseMute').querySelector('b').textContent = muted ? 'Sound off' : 'Sound on';
+  $('pauseMute').setAttribute('aria-pressed', String(!muted));
+}
+function toggleMute() { muted = !muted; store.set('poda-muted', muted ? '1' : '0'); syncSoundButtons(); }
+syncSoundButtons();
 function tone(f, dur, type, vol, f2, when = 0) {
   const a = audio(); if (!a || muted) return;
   const t = a.currentTime + when, o = a.createOscillator(), g = a.createGain();
@@ -1166,16 +1207,41 @@ function renderSeats() {
 }
 function renderBody() {
   const shaken = S.time - S.hitAt < 4 && state === 'play';
+  const condition = S.condition == null ? RULES.CONDITION : S.condition;
   const els = $('body').children;
-  els[0].className = shaken ? 'off' : ''; els[1].className = '';
+  for (let i = 0; i < els.length; i++) els[i].className = i < condition ? '' : 'off';
+  $('bodyLabel').textContent = condition <= 1 ? 'One more knock ends the run'
+    : shaken ? 'Shaken — tek tem' : 'Bus ready';
+}
+let lastRouteRail = '';
+function renderRouteRail() {
+  const key = routeId + ':' + S.stopIdx;
+  if (key === lastRouteRail) return;
+  lastRouteRail = key;
+  $('routeRail').replaceChildren(...DATA.route.map((name, index) => {
+    const stop = document.createElement('span');
+    stop.className = index < S.stopIdx ? 'passed' : index === S.stopIdx ? 'current' : '';
+    if(index === S.stopIdx) stop.setAttribute('aria-current','step');
+    stop.title = name;
+    const bar=document.createElement('i'), label=document.createElement('small');
+    label.textContent=name; stop.append(bar,label); return stop;
+  }));
+  $('routeRail').setAttribute('aria-label', `Next stop ${Math.min(S.stopIdx+1,DATA.route.length)} of ${DATA.route.length}: ${stopName(S.stopIdx)}`);
 }
 let lastHud = '';
 function updateHud() {
-  const key = [Math.round(S.cash), Math.round(S.dist / 10), Math.round(S.speed), S.stopIdx, Math.round(S.toStop / 5), S.pax.length, S.time - S.hitAt < 4].join('|');
+  const score = RULES.calculateScore(S);
+  const key = [score, S.coins, Math.round(S.cash), Math.round(S.dist / 10), Math.round(S.speed), S.stopIdx, Math.round(S.toStop / 5), S.pax.length, S.time - S.hitAt < 4, S.multiplier, S.condition, S.reversing].join('|');
   if (key === lastHud) return; lastHud = key;
   hudEls.cash.textContent = fmtLe(S.cash);
+  $('liveScore').textContent = score.toLocaleString('en-US');
+  const mult = $('liveMult');
+  mult.hidden = !(S.multiplier > 1);
+  if (S.multiplier > 1) mult.textContent = '×' + S.multiplier;
+  $('liveCoins').textContent = S.coins.toLocaleString('en-US');
+  renderRouteRail();
   hudEls.dist.textContent = (S.dist / 1000).toFixed(2) + ' km';
-  hudEls.kmh.textContent = Math.round(S.speed * 3.6) + ' km/h';
+  hudEls.kmh.textContent = S.speed < -0.2 ? 'R' : Math.round(Math.max(0, S.speed) * 3.6) + ' km/h';
   hudEls.stopName.textContent = stopName(S.stopIdx);
   hudEls.stopDist.textContent = Math.max(0, Math.round(S.toStop)) + ' m';
   const d = paxForStop();
@@ -1191,6 +1257,16 @@ function updateHud() {
     drops: d, progress: progress / 100,
   });
 }
+/* Approach cues. RunRules.stopGuidance picks the key; the wording lives here. */
+const STOP_CUES = {
+  loading:   () => 'Loading passengers…',
+  ahead:     m => `${stopName(S.stopIdx).toUpperCase()} · ${m} m`,
+  keepRight: m => `STOP IN ${m} m · KEEP RIGHT <kbd>→</kbd>`,
+  ready:     m => `STOP IN ${m} m · EASE OFF <kbd>↓</kbd>`,
+  brake:     () => 'BRAKE IN THE YELLOW BOX <kbd>↓</kbd>',
+  overshot:  m => `YOU PASSED IT BY ${m} m · HOLD <kbd>↓</kbd> TO BACK UP`,
+  reversing: () => 'HOLD THE BRAKE · BACKING UP',
+};
 function setHint(html) {
   if (hudEls.hint.innerHTML !== html) hudEls.hint.innerHTML = html;
   hudEls.hint.hidden = !html;
@@ -1210,7 +1286,9 @@ function say(kind, idx) {
   const [kr, en] = idx != null ? lines[idx] : pick(lines);
   while (popsEl.children.length > 2) popsEl.firstChild.remove();
   const el = document.createElement('div'); el.className = 'pop krio';
-  el.innerHTML = `${kr}<small>${en}</small>`;
+  // Attribute the line to the apprentice hanging out of the door — he is already
+  // modelled and animated, so the voice should visibly belong to someone.
+  el.innerHTML = `<b class="who">Apprentice</b>${kr}<small>${en}</small>`;
   if (hud3d) hud3d.pop(kr, 'krio', en);
   popsEl.appendChild(el); setTimeout(() => el.remove(), 2200);
 }
@@ -1234,10 +1312,14 @@ function startRun() {
   garageHidden = [];
   $('playerGarage').hidden = true;
   $('pause').hidden = true;
+  $('leaveRun').close();
+  $('radio').inert = false;
+  $('hud').inert = false;
+  lastHud = ''; lastRouteRail = '';
   $('title').hidden = true; $('over').hidden = true; $('hud').hidden = false; $('touch').hidden = false; $('radio').hidden = false;
   musicInit(); engineInit();
   popsEl.innerHTML = '';
-  pop('Swipe to steer · swipe up / Space to hop low debris');
+  pop('Hold GAS · swipe the road to steer');
   updateHud();
   canvas.focus?.();
   events.emit('game:start', { route: DATA.route });
@@ -1248,18 +1330,34 @@ function pauseRun() {
   changeState('paused');
   inputManager.release();
   $('pause').hidden = false; $('touch').hidden = true;
+  $('radio').inert = true;
+  $('hud').inert = true;
+  $('pauseGoals').replaceChildren(...missions.status().map(mission => {
+    const row=document.createElement('div'), label=document.createElement('label'), amount=document.createElement('b'), progress=document.createElement('progress');
+    progress.id='pause-goal-'+mission.id; progress.max=mission.target; progress.value=mission.progress;
+    label.htmlFor=progress.id; label.textContent=mission.label;
+    amount.textContent=mission.complete?'Done':`${mission.progress}/${mission.target}`;
+    row.className=mission.complete?'goal-done':''; row.append(label,amount,progress); return row;
+  }));
+  syncSoundButtons(); $('resumeBtn').focus();
   events.emit('game:pause', {});
 }
 function resumeRun() {
-  if (state !== 'paused') return;
+  if (state !== 'paused' || $('leaveRun').open) return;
   changeState('play'); clock.reset(); canvas.focus();
   $('pause').hidden = true; $('touch').hidden = false;
+  $('radio').inert = false;
+  $('hud').inert = false;
   events.emit('game:resume', {});
 }
 function endRun(completed = false) {
   if (state === 'over' || state === 'complete') return;
   changeState(completed ? 'complete' : 'over');
   S.over = true; S.completed = completed;
+  inputManager.release();
+  $('pause').hidden = true; $('radio').hidden = true; $('touch').hidden = true; $('hud').hidden = true;
+  $('shareStatus').textContent = '';
+  $('over').classList.toggle('run-complete', completed);
   const result = RULES.summarize(S);
   lastResult={...result,id:crypto.randomUUID(),date:Date.now(),vehicle:vehicleId,route:routeId};resultVehicle=CONFIG.vehicles[vehicleId].name;resultRoute=CONFIG.routes[routeId].name;
   if(resultModel)resultModel.traverse(m=>{if(m.isMesh)m.geometry.dispose();});
@@ -1267,7 +1365,7 @@ function endRun(completed = false) {
   events.emit(completed ? 'route:complete' : 'game:over', result);
   const best = Math.max(+store.get('poda-best-score') || 0, result.score);
   store.set('poda-best-score', String(best));
-  $('overTitle').innerHTML = completed ? 'Shift<br>complete!' : pick(DATA.over).replace(' don ', '<br>don ');
+  $('overTitle').textContent = completed ? 'Route complete!' : 'Di poda don jam!';
   $('overEyebrow').textContent = completed ? CONFIG.routes[routeId].name : 'Jammed near ' + stopName(S.stopIdx);
   $('overLine').textContent = `Delivered ${result.passengersDelivered} passenger${result.passengersDelivered === 1 ? '' : 's'} across ${(result.distance / 1000).toFixed(2)} km. ${result.stopsServed} stops served · ${result.stopsMissed} missed.`;
   $('sScore').textContent = result.score.toLocaleString('en-US');
@@ -1280,14 +1378,29 @@ function endRun(completed = false) {
   $('sPerfect').textContent = result.perfectStops;
   $('scoreBreakdown').textContent = `Score: ${result.passengersDelivered} delivered × 100 + ${result.stopsServed} stops × 30 + ${result.perfectStops} perfect × 40 + ${Math.floor(result.distance / 20)} distance${completed ? ' + 300 finish' : ''} − ${result.stopsMissed} missed × 25 − ${result.collisions} collisions × 40 (minimum 0).`;
   $('missionSummary').textContent = 'Route goals: ' + missions.status().map(mission => `${mission.label} ${mission.progress}/${mission.target}`).join(' · ');
-  $('onlineStatus').textContent = 'This-device leaderboard · enter a name to save your run.';
+  const saved = saveLocalScore();
+  $('onlineStatus').textContent = saved ? 'Saved on this device. You can change your name and save again.' : 'You can download a picture of this run even when browser storage is unavailable.';
   const finishedSerial = runSerial;
   $('bestOver').textContent = 'Best score: ' + best.toLocaleString('en-US');
   setHint('');
   setTimeout(() => {
     if (runSerial !== finishedSerial || (state !== 'over' && state !== 'complete')) return;
-    $('over').hidden = false; $('touch').hidden = true;
+    $('over').hidden = false; $('over').scrollTop=0; $('againBtn').focus({preventScroll:true});
   }, 900);
+}
+function returnHome() {
+  if (!isFinished()) return;
+  runSerial++;
+  changeState('attract');
+  inputManager.release();
+  resetRun();
+  for(const ch of chunks) fillChunk(ch);
+  for(const id of ['over','pause','hud','touch','radio','playerGarage','leaderboard','missionsPanel']) $(id).hidden=true;
+  $('radio').inert=false;
+  if(workshop)workshop.visible=false;
+  world.visible=true; transitionTime=0;
+  setHint(''); popsEl.replaceChildren();
+  $('title').hidden=false; showBest(); $('startBtn').focus();
 }
 function isFinished() { return state === 'over' || state === 'complete'; }
 function showBest() { const b = +store.get('poda-best-score') || 0; $('bestTitle').textContent = b ? b.toLocaleString('en-US') : '—'; }
@@ -1357,6 +1470,7 @@ function saveLocalScore(){
  const name=$('driverName').value.trim().slice(0,24)||'Salone driver';store.set('poda-driver-name',name);
  const rows=readScores().filter(r=>r.id!==lastResult.id);rows.push({...lastResult,name});rows.sort((a,b)=>b.score-a.score);const saved=store.set('poda-scores-v2',JSON.stringify(rows.slice(0,100)));
  $('shareStatus').textContent=saved?'Score saved on this device.':'Browser storage is unavailable. You can still download your poster.';
+ return saved;
 }
 $('driverName').value=store.get('poda-driver-name')||'';
 $('saveScore').addEventListener('click',saveLocalScore);
@@ -1463,6 +1577,17 @@ function update(dt) {
   const { distance: d, gas, dwellFinished } = window.PODA_PlayerSystem.stepPlayer(S, input, dt, state, LANES);
   if (dwellFinished) finishDwell();
 
+  // Style multiplier: holding speed between stops pays, loading and knocks reset it.
+  if (state === 'play') {
+    if (S.dwell > 0 || S.reversing) S.fastTime = 0;
+    else if (RULES.isFast(S.speed, S.vehicle && S.vehicle.maxSpeed)) S.fastTime += dt;
+    else S.fastTime = Math.max(0, S.fastTime - dt * 2);
+    const multiplier = RULES.speedMultiplier(S.fastTime);
+    if (multiplier > S.multiplier) pop('Fast ×' + multiplier);
+    S.multiplier = multiplier;
+    S.style += RULES.stylePoints(multiplier, Math.max(0, d));
+  }
+
   if(window.PODA_JumpSystem.step(S,dt)){S.bump=.22;S.shake=reduceMotion?0:.15;sfx('thud');events.emit('jump:land',{});}
   S.bump=Math.max(0,S.bump-dt);
   // player
@@ -1490,13 +1615,22 @@ function update(dt) {
 
   // bus stops
   if (!stopObj && !isFinished() && S.toStop <= 205) spawnStop();
+  if (!stopObj) S.reversing = false;
   if (stopObj) {
     const s = stopObj; s.z += d; s.g.position.z = s.z;
     if (!s.served && !s.missed && !isFinished()) {
       const inZone = RULES.canServeStop({ distanceFromCentre: s.z, lane: S.lane, laneX: LANES[2], playerX: S.x, speed: S.speed });
-      if (inZone && !S.jumpY) beginDwell();
-      else if (s.z > 9) missStop();
-    }
+      if (inZone && !S.jumpY) { S.reversing = false; beginDwell(); }
+      else if (RULES.stopMissed({ distanceFromCentre: s.z })) { S.reversing = false; missStop(); }
+      else {
+        // Overshot but still winnable: hold the brake in the kerb lane to back up.
+        const recovering = RULES.canRecoverStop({
+          distanceFromCentre: s.z, lane: S.lane, braking: input.brake || input.brakePulse > 0,
+        });
+        if (recovering && !S.reversing) { say('reverse'); sfx('thud'); }
+        S.reversing = recovering;
+      }
+    } else S.reversing = false;
     for (const w of s.walkers) {
       if ((w.delay -= dt) > 0) continue;
       const to = w.to, p = w.p.position, dx = to.x - p.x, dz = to.z - p.z, len = Math.hypot(dx, dz);
@@ -1504,19 +1638,20 @@ function update(dt) {
       const st = Math.min(len, 3.2 * dt); p.x += dx / len * st; p.z += dz / len * st; w.p.rotation.y = Math.atan2(dx, dz);
       if (PLUG.people && PLUG.people.walk) PLUG.people.walk(w.p, S.time * 1.6);
     }
-    if (s.z > 45) { drop(s.g); stopObj = null; }
+    // Keep the stop in the world for the whole recovery stretch, or it would vanish
+    // from under a player who is still backing up to it.
+    if (s.z > RULES.RECOVER_LIMIT + 15) { drop(s.g); stopObj = null; }
   }
 
   // hints
   if (state === 'play' && !demo) {
     const s = stopObj && !stopObj.served && !stopObj.missed ? stopObj : null;
-    if (S.dwell > 0) setHint('Loading passengers…');
-    else if (s && s.z > -110 && s.z < 8) {
-      const metres = Math.max(0, Math.round(-s.z));
-      setHint(S.lane !== 2 ? `STOP IN ${metres} m · KEEP RIGHT <kbd>→</kbd>` :
-        metres > 25 ? `STOP IN ${metres} m · SLOW DOWN <kbd>↓</kbd>` : 'BRAKE IN THE YELLOW BOX <kbd>↓</kbd>');
-    }
-    else setHint('');
+    const cue = (s || S.dwell > 0) ? RULES.stopGuidance({
+      distanceFromCentre: s ? s.z : 0,
+      lane: S.lane, dwelling: S.dwell > 0, recovering: S.reversing,
+    }) : null;
+    const metres = s ? Math.max(0, Math.round(Math.abs(s.z))) : 0;
+    setHint(STOP_CUES[cue] ? STOP_CUES[cue](metres) : '');
   }
 
   // spawn

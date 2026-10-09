@@ -37,3 +37,15 @@ test('event listeners can unsubscribe', () => {
   bus.emit('stop:served', { passengersDropped: 2 });
   assert.equal(total, 2);
 });
+
+test('finished and abandoned runs can return home and start a fresh run', () => {
+  for (const outcome of ['over', 'complete']) {
+    const machine = new GameStateMachine();
+    machine.transition('play');
+    if (outcome === 'over') machine.transition('paused');
+    machine.transition(outcome);
+    assert.equal(machine.transition('attract'), 'attract');
+    assert.equal(machine.transition('play'), 'play');
+    assert.equal(machine.transition('paused'), 'paused');
+  }
+});
