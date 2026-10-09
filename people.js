@@ -1,3 +1,7 @@
+// Three.js is a bundled dependency, not a CDN global: this file dereferences
+// THREE at module-evaluation time, so it needs its own import rather than
+// relying on another module to assign a global first.
+import * as THREE from 'three';
 window.PODA = window.PODA || { vehicles: {}, districts: {} };
 /* ==================================================================
    People of Freetown: PODA.people.make(kit, opt) + PODA.people.walk(p, t)

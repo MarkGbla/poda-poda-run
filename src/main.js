@@ -8,6 +8,8 @@ import { createScorePoster } from './ui/ScorePoster.js';
 import './simulation/systems/TrafficAI.js';
 import './data/GameConfig.js';
 import './simulation/systems/JumpSystem.js';
+import * as THREE from 'three';
+import { createFreetownAerial } from './world/FreetownAerial.js';
 import { createWorkshop } from './assets/props/workshop.js';
 import { createRoleDecorator } from './assets/people/roles.js';
 import { createBuildingFactory } from './assets/buildings/buildingFactory.js';
@@ -37,7 +39,6 @@ import './services/ApiClient.js';
 
 (() => {
 'use strict';
-const THREE = window.THREE;
 const gameURL = 'https://podapodarun.com/';
 
 /* ================================================================
@@ -1603,7 +1604,8 @@ function openPlayerGarage() {
   if (!player || (state !== 'attract' && !isFinished())) return;
   garageReturnState = state;
   changeState('garage');
-  freeTown();
+  // The aerial is kept, not freed: the garage renders the workshop scene instead,
+  // and closing it returns to the title without rebuilding the map.
   if (!workshop) { workshop=createWorkshop(kit,streetAssets,bake); scene.add(workshop); }
   workshop.visible=true; world.visible=false;
   $('hud').hidden=true; $('radio').hidden=true;
@@ -1720,7 +1722,9 @@ function loop(now) {
     const nearby=ch.position.z > -qualityManager.budget.shadowDistance;
     for(const mesh of ch.userData.content.children)if(mesh.isMesh)mesh.castShadow=nearby;
   }
-  renderer.render(scene, camera);
+  // The title shows the peninsula from above; every other state shows the street.
+  if (state === 'attract' && aerial) renderTown();
+  else renderer.render(scene, camera);
   sampleMetrics(raw);
   if (hud3d && (state === 'play' || demo)) {
     try { hud3d.render(renderer); }
@@ -1929,49 +1933,23 @@ function garage() {
   (function spin() { renderer.render(scene, camera); requestAnimationFrame(spin); })();
 }
 
-/* ---------- Title backdrop: slow aerial orbit over the downtown Freetown diorama ----------
-   Decoded from town-model.js (gzipped int16 positions + per-triangle palette), one draw call.
-   Freed as soon as a run starts, so it costs nothing during play. */
-const town = { scene: null, cam: new THREE.PerspectiveCamera(42, 1, 1, 900), mesh: null };
-async function loadTown() {
-  if (!window.PODA_TOWN || !window.DecompressionStream || demo || params.has('district') || params.has('garage')) return;
-  const b64 = window.PODA_TOWN, bin = new Uint8Array(b64.length * 3 / 4 | 0);
-  const raw = atob(b64); for (let i = 0; i < raw.length; i++) bin[i] = raw.charCodeAt(i);
-  window.PODA_TOWN = null;
-  const buf = await new Response(new Blob([bin]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
-  const hl = new DataView(buf).getUint32(0, true);
-  const head = JSON.parse(new TextDecoder().decode(new Uint8Array(buf, 4, hl)));
-  let off = 4 + hl; off += (4 - off % 4) % 4;
-  const n = head.tris * 9, q = new Int16Array(buf, off, n), fc = new Uint8Array(buf, off + n * 2, head.tris);
-  const pos = new Float32Array(n), col = new Float32Array(n);
-  for (let i = 0; i < n; i++) pos[i] = (q[i] + 32767) * head.scale + head.lo[i % 3];
-  for (let t = 0; t < head.tris; t++) { const c = head.palette[fc[t]]; for (let k = 0; k < 9; k += 3) col.set(c, t * 9 + k); }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
-  geo.computeVertexNormals();                                   // flat, low-poly shading
-  for (const k of ['position', 'color', 'normal']) geo.attributes[k].onUpload(function () { this.array = null; }); // drop CPU copies once on the GPU
-  if (state !== 'attract') { geo.dispose(); return; }
-  const sc = new THREE.Scene();
-  sc.background = scene.background;
-  sc.fog = new THREE.Fog(0xcfe3e8, 260, 520);
-  sc.add(new THREE.HemisphereLight(0xf2f8ff, 0x8a5a3a, 0.85));
-  const dl = new THREE.DirectionalLight(0xfff0d2, 0.75); dl.position.set(-60, 120, 70); sc.add(dl);
-  town.mesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true }));
-  town.mesh.matrixAutoUpdate = false; sc.add(town.mesh);
-  town.scene = sc;
-  resize();
+/* ---------- Title backdrop: a bird's-eye diorama of the Freetown peninsula ----------
+   Generated geometry, not map data: the coastline, the estuary and the
+   mountains are built from a height function at boot. Lives in its own scene
+   and is disposed the moment a run starts, so it costs nothing while driving. */
+let aerial = null;
+function loadTown() {
+  if (demo || params.has('district') || params.has('garage') || benchmark) return;
+  aerial = createFreetownAerial(THREE, { canvasTex, fitText });
 }
 function freeTown() {
-  if (!town.mesh) return;
-  town.mesh.geometry.dispose(); town.mesh.material.dispose();
-  town.scene = town.mesh = null;
+  if (!aerial) return;
+  aerial.dispose();
+  aerial = null;
 }
-function renderTown(t) {
-  const a = t * 0.00006 + 0.6, r = 135;
-  town.cam.position.set(Math.sin(a) * r, 52 + Math.sin(t * 0.0002) * 8, Math.cos(a) * r);
-  town.cam.lookAt(0, 4, 0);
-  renderer.render(town.scene, town.cam);
+function renderTown() {
+  aerial.update(performance.now() * 0.001, camera.aspect, reduceMotion);
+  renderer.render(aerial.scene, aerial.camera);
 }
 
 let baseFov = 58;
@@ -1982,7 +1960,7 @@ function resize() {
   baseFov = w / h < 0.8 ? 68 : 58;
   camera.fov = baseFov;
   camera.updateProjectionMatrix();
-  town.cam.aspect = w / h; town.cam.fov = w / h < 0.8 ? 62 : 42; town.cam.updateProjectionMatrix();
+  // The aerial sets its own aspect and field of view each frame in update().
   if (hud3d) hud3d.resize(w, h);
 }
 addEventListener('resize', resize);
@@ -2031,6 +2009,12 @@ fontsReady.catch(() => {}).then(() => {
   $('qualityProfile').value = savedQuality;
   qualityManager.setProfile(savedQuality);
   resize();
+  // Offline support. Production only: in development it would serve stale
+  // assets back over Vite's hot reload.
+  if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js').catch(() => {});
+  }
+  loadTown();
   if (demo && !benchmark) startRun();
   // The actual player vehicle is the title showcase; no separate town scene is allocated.
   if (benchmark) setupBenchmark();
