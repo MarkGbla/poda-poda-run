@@ -207,3 +207,68 @@ html,body {touch-action:auto;}
  #playerGarage .plate{max-height:94dvh;}
  #playerGarage .plate-body{max-height:65dvh;}
 }
+
+/* ======================================================================
+   Control ladder
+   ----------------------------------------------------------------------
+   Rank is encoded in height and corner radius, so a control's job is
+   readable before its label is. Rules of the ladder:
+     action   one primary per panel, the only filled accent
+     control  tabs, selects and filter chips — all equal within a strip
+     inline   tertiary, sits inside a line of text
+   Panels keep a scrolling body and a pinned action bar, so the primary
+   action is always reachable no matter how tall the content grows.
+   ====================================================================== */
+:root {
+  --ctl-r-action: 14px;
+  --ctl-r-control: 9px;
+  --ctl-r-inline: 6px;
+  --ctl-h-action: 52px;
+  --ctl-h-control: 42px;
+}
+
+/* One size for every tab in a strip. These were flex-wrapped, so the five tabs
+   on the first row and the four on the second shared out the leftover space
+   differently and rendered at 59x44 and 75x48. A fixed three-column grid makes
+   all nine identical. ID-scoped to beat the earlier `#playerGarage` rule. */
+#playerGarage .garage-tabs {
+  display: grid; gap: 6px; margin: 12px 0;
+  grid-template-columns: repeat(3, 1fr);
+}
+#playerGarage .garage-tabs button {
+  min-height: var(--ctl-h-control);
+  display: flex; align-items: center; justify-content: center;
+  font: 800 12px var(--body); text-align: center; padding: 0 8px;
+  border-radius: var(--ctl-r-control);
+}
+
+/* The garage plate used to overflow its own panel: `.plate` is
+   `overflow:hidden`, so once the tab strip and detail controls grew past the
+   viewport the tabs were cropped mid-row and Drive sat on top of them. Cap the
+   plate to the viewport, scroll the body, and pin the actions. */
+#playerGarage .plate {
+  display: flex; flex-direction: column;
+  max-height: calc(100dvh - 48px);
+}
+#playerGarage .plate-body {
+  min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+  padding-bottom: 10px;
+}
+/* No sticky action bar here: at 768px the garage body is short enough that a
+   pinned footer sits on top of the tab strip and hides the controls it floats
+   over. Letting the actions scroll with the content keeps everything readable.
+   Pinning them properly needs the row moved out of .plate-body in the markup. */
+#playerGarage .plate-body > .row { margin-top: 4px; }
+
+/* Consistent rank across panels: the same class should not render 42px tall
+   in one panel and a different shape in the next. */
+#playerGarage .btn,
+#playerGarage .secondaryBtn,
+#leaderboard .secondaryBtn,
+#missionsPanel .secondaryBtn {
+  min-height: var(--ctl-h-action);
+  border-radius: var(--ctl-r-action);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+#playerGarage select,
+#leaderboard select { border-radius: var(--ctl-r-control); min-height: var(--ctl-h-control); }

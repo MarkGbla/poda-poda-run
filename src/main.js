@@ -168,56 +168,200 @@ const ROOF = [0x8f9396, 0x9a5a3a, 0xa7abad, 0x7f4a32, 0x6e7276];
 let roadTex, roadDetailTex, walkTex, coinMat, shopTex = [], sloganTex = {};
 const LANE_W = 3.4, LANES = [-LANE_W, 0, LANE_W], ROAD_HALF = LANE_W * 1.5 + 0.35;
 
+/* ---------- Tileable value noise ----------
+   Asphalt reads wrong when its only variation is per-pixel speckle: real road
+   surface drifts in tone over metres, from paving batches, patching and wear.
+   This is a coarse random lattice sampled bilinearly and summed over octaves,
+   wrapped so the result still tiles. Returns 0..1 per texel. */
+function noiseField(size, cells, octaves = 4) {
+  const out = new Float32Array(size * size);
+  let amplitude = 1, total = 0;
+  for (let o = 0; o < octaves; o++) {
+    const n = cells << o;
+    const lattice = new Float32Array(n * n);
+    for (let i = 0; i < lattice.length; i++) lattice[i] = Math.random();
+    const scale = n / size;
+    for (let y = 0; y < size; y++) {
+      const fy = y * scale, y0 = Math.floor(fy), ty = fy - y0;
+      const r0 = (y0 % n) * n, r1 = ((y0 + 1) % n) * n;
+      for (let x = 0; x < size; x++) {
+        const fx = x * scale, x0 = Math.floor(fx), tx = fx - x0;
+        const c0 = x0 % n, c1 = (x0 + 1) % n;
+        const top = lattice[r0 + c0] * (1 - tx) + lattice[r0 + c1] * tx;
+        const bot = lattice[r1 + c0] * (1 - tx) + lattice[r1 + c1] * tx;
+        out[y * size + x] += (top * (1 - ty) + bot * ty) * amplitude;
+      }
+    }
+    total += amplitude;
+    amplitude *= 0.5;
+  }
+  for (let i = 0; i < out.length; i++) out[i] /= total;
+  return out;
+}
+
+/* Lane centres and wheel tracks in texture U, derived from the real road metrics
+   so the worn ribbons line up with where vehicles actually drive. */
+const ROAD_U = x => (x + ROAD_HALF) / (ROAD_HALF * 2);
+const WHEEL_TRACKS = LANES.flatMap(x => [ROAD_U(x - 0.85), ROAD_U(x + 0.85)]);
+
 function buildTextures() {
-  roadTex = canvasTex(512, 512, (g, w, h) => {
-    g.fillStyle = '#53534f'; g.fillRect(0, 0, w, h);
-    // Broad wear, fine aggregate, repair patches and sparse cracks live in one repeating map.
-    for (let i = 0; i < 95; i++) {
-      const v = randi(43, 81), x = rand(0, w), y = rand(0, h), r = rand(11, 62);
-      const wash = g.createRadialGradient(x, y, 1, x, y, r);
-      wash.addColorStop(0, `rgba(${v},${v - 2},${v - 4},.19)`);
-      wash.addColorStop(1, `rgba(${v},${v - 2},${v - 4},0)`);
-      g.fillStyle = wash; g.fillRect(x - r, y - r, r * 2, r * 2);
+  const RS = 1024;                       // road maps: ~94 px per metre across
+  roadTex = canvasTex(RS, RS, (g, w, h) => {
+    // 1. Base course, darker than before so the bus, markings and hazards carry
+    //    the brightness instead of competing with the road.
+    g.fillStyle = '#434240'; g.fillRect(0, 0, w, h);
+
+    // 2. Large-scale tonal drift plus fine aggregate, written per texel. Two
+    //    noise octaves at different lattice sizes give batch-level blotching
+    //    and stone-level grain in one pass.
+    const broad = noiseField(w, 4, 4), grain = noiseField(w, 64, 2);
+    const img = g.getImageData(0, 0, w, h), px = img.data;
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = y * w + x, p = i * 4;
+        const u = x / w;
+        // Grain carries most of the variation, but kept restrained: asphalt at
+        // speed should read as a settled surface, not a busy one.
+        let v = (broad[i] - 0.5) * 9 + (grain[i] - 0.5) * 24;
+        v += (Math.random() - 0.5) * 10;                       // per-texel sparkle
+        // Wheel ribbons: polished darker bands where tyres actually track.
+        for (const track of WHEEL_TRACKS) {
+          const d = Math.abs(u - track);
+          if (d < 0.055) v -= (1 - d / 0.055) * 15;
+        }
+        // Laterite dust drifting in from the shoulders — a Freetown road reads
+        // red-brown at the edges, not grey.
+        const edge = Math.max(0, 1 - Math.min(u, 1 - u) / 0.1);
+        px[p] = clamp(px[p] + v + edge * 34, 0, 255);
+        px[p + 1] = clamp(px[p + 1] + v + edge * 20, 0, 255);
+        px[p + 2] = clamp(px[p + 2] + v + edge * 8, 0, 255);
+      }
     }
-    for (let i = 0; i < 13500; i++) {
-      const v = randi(65, 122);
-      g.fillStyle = `rgba(${v},${v - 2},${v - 4},${rand(.12, .37)})`;
-      g.fillRect(rand(0, w), rand(0, h), rand(.6, 2.3), rand(.6, 2.3));
+    g.putImageData(img, 0, 0);
+
+    // 3. Coarser exposed stones, drawn as lit/shadowed pairs so the bump map
+    //    has something with a direction to it.
+    for (let i = 0; i < 1100; i++) {
+      const x = rand(0, w), y = rand(0, h), r = rand(1, 2.9), t = randi(92, 136);
+      g.fillStyle = `rgba(${t},${t - 3},${t - 7},${rand(.09, .22)})`;
+      g.beginPath(); g.ellipse(x, y, r, r * 0.8, rand(0, 3), 0, 7); g.fill();
+      g.fillStyle = 'rgba(18,18,17,.16)';
+      g.beginPath(); g.ellipse(x + r * .5, y + r * .5, r * .7, r * .55, 0, 0, 7); g.fill();
     }
-    for (let i = 0; i < 3; i++) {
-      const x = rand(36, w - 115), y = rand(10, h - 65), pw = rand(35, 90), ph = rand(23, 65);
-      g.beginPath();
-      g.moveTo(x + rand(-4, 4), y); g.lineTo(x + pw + rand(-4, 4), y + rand(-3, 3));
-      g.lineTo(x + pw + rand(-4, 4), y + ph); g.lineTo(x + rand(-4, 4), y + ph + rand(-3, 3)); g.closePath();
-      g.fillStyle = `rgba(${randi(55, 70)},${randi(55, 70)},${randi(52, 66)},.3)`; g.fill();
-      g.strokeStyle = 'rgba(27,28,27,.18)'; g.lineWidth = 1.2; g.stroke();
+
+    // 4. Oil and diesel drip down the middle of each lane, heaviest where
+    //    traffic crawls. Narrow, dark and slightly blue-black.
+    //    Kept sparse and faint: overlapping ellipses accumulate fast, and at any
+    //    density above this they merge into wet-looking slicks.
+    for (const lane of LANES) {
+      const cx = ROAD_U(lane) * w;
+      for (let i = 0; i < 30; i++) {
+        const y = rand(0, h), len = rand(6, 26), wid = rand(1, 3.4);
+        g.fillStyle = `rgba(24,24,28,${rand(.03, .075)})`;
+        g.beginPath(); g.ellipse(cx + rand(-7, 7), y, wid, len, 0, 0, 7); g.fill();
+      }
     }
-    for (let i = 0; i < 13; i++) {
-      let x = rand(20, w - 20), y = rand(0, h);
+
+    // 5. Repair patches: a different mix, a dark cut seam and their own grain.
+    for (let i = 0; i < 7; i++) {
+      const x = rand(20, w - 190), y = rand(0, h), pw = rand(70, 180), ph = rand(45, 150);
+      g.save(); g.beginPath();
+      g.moveTo(x + rand(-7, 7), y); g.lineTo(x + pw + rand(-7, 7), y + rand(-6, 6));
+      g.lineTo(x + pw + rand(-7, 7), y + ph); g.lineTo(x + rand(-7, 7), y + ph + rand(-6, 6));
+      g.closePath(); g.clip();
+      const tone = randi(54, 80);
+      g.fillStyle = `rgba(${tone},${tone - 1},${tone - 4},.38)`; g.fillRect(x - 10, y - 10, pw + 20, ph + 20);
+      for (let s = 0; s < 420; s++) {
+        const t = randi(70, 140);
+        g.fillStyle = `rgba(${t},${t},${t - 4},${rand(.1, .3)})`;
+        g.fillRect(rand(x, x + pw), rand(y, y + ph), rand(.8, 2.6), rand(.8, 2.6));
+      }
+      g.restore();
+      g.strokeStyle = 'rgba(16,16,15,.5)'; g.lineWidth = rand(1.5, 3); g.stroke();
+    }
+
+    // 6. Cracks that branch, and the tar someone brushed over the worst of them.
+    const crack = (x, y, depth, width) => {
       g.beginPath(); g.moveTo(x, y);
-      for (let j = 0; j < 5; j++) { x += rand(-11, 11); y += rand(5, 19); g.lineTo(x, y); }
-      g.strokeStyle = 'rgba(22,23,23,.28)'; g.lineWidth = rand(.7, 1.8); g.stroke();
+      let cx = x, cy = y;
+      for (let j = 0; j < 6; j++) { cx += rand(-14, 14); cy += rand(8, 26); g.lineTo(cx, cy); }
+      g.strokeStyle = `rgba(20,20,19,${rand(.14, .3)})`; g.lineWidth = width; g.stroke();
+      if (depth > 0 && Math.random() < 0.5) crack(cx, cy, depth - 1, width * 0.65);
+    };
+    for (let i = 0; i < 9; i++) crack(rand(0, w), rand(0, h), 1, rand(.9, 1.9));
+    for (let i = 0; i < 3; i++) {                              // tar-sealed repairs
+      let x = rand(0, w), y = rand(0, h);
+      g.beginPath(); g.moveTo(x, y);
+      for (let j = 0; j < 5; j++) { x += rand(-20, 20); y += rand(14, 34); g.lineTo(x, y); }
+      g.strokeStyle = 'rgba(26,25,24,.62)'; g.lineWidth = rand(3.5, 7);
+      g.lineCap = 'round'; g.stroke(); g.lineCap = 'butt';
     }
-    const edge = g.createLinearGradient(0, 0, w, 0);
-    edge.addColorStop(0, '#756c5c'); edge.addColorStop(.045, '#5d5b54'); edge.addColorStop(.14, '#0000');
-    edge.addColorStop(.86, '#0000'); edge.addColorStop(.955, '#5d5b54'); edge.addColorStop(1, '#756c5c');
-    g.fillStyle = edge; g.fillRect(0, 0, w, h);
-    g.fillStyle = 'rgba(224,214,179,.72)';
-    for (const x of [w / 3, 2 * w / 3]) g.fillRect(x - 2, 15, 4, h * .42);
-    g.fillStyle = 'rgba(231,195,82,.73)'; g.fillRect(7, 0, 4, h); g.fillRect(w - 11, 0, 4, h);
+
+    // 7. Markings, worn. Real lane paint is chipped and thinned by the tyres
+    //    that cross it, so each dash is drawn in broken segments.
+    const paint = (x, y, len, width, colour) => {
+      for (let s = 0; s < len; s += rand(3, 9)) {
+        if (Math.random() < 0.22) continue;                    // scuffed away
+        const seg = Math.min(rand(5, 16), len - s);
+        g.fillStyle = colour.replace('ALPHA', rand(.4, .82).toFixed(2));
+        g.fillRect(x + rand(-.6, .6), y + s, width, seg);
+      }
+    };
+    for (const x of [w / 3, 2 * w / 3]) {
+      for (let y = 20; y < h; y += h * 0.5) paint(x - 3, y, h * 0.34, 6, 'rgba(226,218,190,ALPHA)');
+    }
+    paint(13, 0, h, 7, 'rgba(222,186,76,ALPHA)');
+    paint(w - 20, 0, h, 7, 'rgba(222,186,76,ALPHA)');
+
+    // 8. Ravelled edge where the asphalt crumbles into the shoulder.
+    for (let i = 0; i < 420; i++) {
+      const side = Math.random() < 0.5 ? rand(0, 26) : rand(w - 26, w);
+      const t = randi(70, 115);
+      g.fillStyle = `rgba(${t + 14},${t + 4},${t - 10},${rand(.12, .3)})`;
+      g.fillRect(side, rand(0, h), rand(1, 3), rand(1, 3));
+    }
   });
   roadTex.wrapS = roadTex.wrapT = THREE.RepeatWrapping; roadTex.repeat.set(1, 10);
   // Non-colour data for aggregate relief and dry/worn roughness.
-  roadDetailTex = canvasTex(512, 512, (g, w, h) => {
-    g.fillStyle = '#d6d6d6'; g.fillRect(0, 0, w, h);
-    for (let i = 0; i < 21000; i++) {
-      const v = randi(115, 245);
-      g.fillStyle = `rgb(${v},${v},${v})`;
-      g.fillRect(rand(0, w), rand(0, h), rand(.6, 2.4), rand(.6, 2.4));
+  roadDetailTex = canvasTex(RS, RS, (g, w, h) => {
+    // Serves as both bumpMap and roughnessMap, so brightness means "raised and
+    // coarse" and darkness means "worn smooth and slightly shiny". That pairing
+    // is physically consistent: the stone tops catch light, the polished wheel
+    // ribbons stay darker and reflect more.
+    g.fillStyle = '#b8b8b8'; g.fillRect(0, 0, w, h);
+    const grain = noiseField(w, 64, 2), broad = noiseField(w, 8, 3);
+    const img = g.getImageData(0, 0, w, h), px = img.data;
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = y * w + x, p = i * 4, u = x / w;
+        let v = (grain[i] - 0.5) * 48 + (broad[i] - 0.5) * 18 + (Math.random() - 0.5) * 24;
+        for (const track of WHEEL_TRACKS) {
+          const d = Math.abs(u - track);
+          if (d < 0.055) v -= (1 - d / 0.055) * 40;            // polished smooth
+        }
+        const t = clamp(px[p] + v, 0, 255);
+        px[p] = px[p + 1] = px[p + 2] = t;
+      }
     }
-    for (let i = 0; i < 13; i++) {
-      g.fillStyle = 'rgba(67,67,67,.25)';
-      g.fillRect(rand(35, w - 110), rand(0, h), rand(35, 95), rand(25, 75));
+    g.putImageData(img, 0, 0);
+    // Proud stones, matching the colour map's coarse aggregate.
+    for (let i = 0; i < 1100; i++) {
+      const x = rand(0, w), y = rand(0, h), r = rand(1, 2.9);
+      g.fillStyle = `rgba(255,255,255,${rand(.14, .32)})`;
+      g.beginPath(); g.ellipse(x, y, r, r * 0.8, rand(0, 3), 0, 7); g.fill();
+      g.fillStyle = 'rgba(0,0,0,.2)';
+      g.beginPath(); g.ellipse(x + r * .6, y + r * .6, r * .6, r * .5, 0, 0, 7); g.fill();
+    }
+    // Patches sit a little proud of the surface; cracks cut into it.
+    for (let i = 0; i < 7; i++) {
+      g.fillStyle = `rgba(${randi(150, 195)},${randi(150, 195)},${randi(150, 195)},.4)`;
+      g.fillRect(rand(20, w - 190), rand(0, h), rand(70, 180), rand(45, 150));
+    }
+    for (let i = 0; i < 16; i++) {
+      let x = rand(0, w), y = rand(0, h);
+      g.beginPath(); g.moveTo(x, y);
+      for (let j = 0; j < 6; j++) { x += rand(-14, 14); y += rand(8, 26); g.lineTo(x, y); }
+      g.strokeStyle = 'rgba(0,0,0,.6)'; g.lineWidth = rand(1, 2.4); g.stroke();
     }
   });
   roadDetailTex.encoding = THREE.LinearEncoding;
@@ -442,7 +586,7 @@ let chunkSerial = 0;
 const hy = ax => Math.max(0, ax - 11) * 0.42;
 
 function buildStatic() {
-  const road = new THREE.Mesh(new THREE.PlaneGeometry(ROAD_HALF * 2, 200), new THREE.MeshStandardMaterial({ map: roadTex, bumpMap: roadDetailTex, bumpScale: .035, roughnessMap: roadDetailTex, roughness: .96, metalness: 0 }));
+  const road = new THREE.Mesh(new THREE.PlaneGeometry(ROAD_HALF * 2, 200), new THREE.MeshStandardMaterial({ map: roadTex, bumpMap: roadDetailTex, bumpScale: .05, roughnessMap: roadDetailTex, roughness: .9, metalness: 0 }));
   road.rotation.x = -Math.PI / 2; road.position.set(0, 0, -90); road.receiveShadow = true; scene.add(road);
   for (const s of [-1, 1]) {
     const channel = new THREE.Mesh(new THREE.PlaneGeometry(.36, 200), M(0x343a36));
