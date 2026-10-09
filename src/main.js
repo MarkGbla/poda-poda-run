@@ -914,21 +914,24 @@ addEventListener('keyup', e => {
 });
 function jump() { if(state==='play' && !demo && window.PODA_JumpSystem.start(S)) {events.emit('jump:start',{});tone(220,.12,'sine',.08,420);} }
 let touch0 = null;
-canvas.addEventListener('pointerdown', e => { if(e.isPrimary && !input.brake && !input.gas) {canvas.setPointerCapture(e.pointerId);touch0 = { x: e.clientX, y: e.clientY, time:performance.now(), id:e.pointerId };} });
+canvas.addEventListener('pointerdown', e => {
+  if (state !== 'play' || touch0) return;
+  canvas.setPointerCapture(e.pointerId);
+  touch0 = { x: e.clientX, y: e.clientY, time:performance.now(), id:e.pointerId };
+});
 canvas.addEventListener('pointerup', e => {
   if (!touch0 || touch0.id!==e.pointerId) return;
   const dx = e.clientX - touch0.x, dy = e.clientY - touch0.y, elapsed=performance.now()-touch0.time; touch0 = null;
-  if(input.brake || input.gas) return;
   if(window.PODA_JumpSystem.swipe(dx,dy,elapsed)) {jump();return;}
   if (Math.abs(dx) > 30 && Math.abs(dx) > Math.abs(dy)) inputManager.command(dx > 0 ? 'MOVE_RIGHT' : 'MOVE_LEFT');
   else if (dy > 40) inputManager.command('BRAKE_PULSE');
 });
-canvas.addEventListener('pointercancel',()=>touch0=null);
+canvas.addEventListener('pointercancel', e => { if (touch0?.id === e.pointerId) touch0 = null; });
 const brakeBtn = $('brakeBtn');
-brakeBtn.addEventListener('pointerdown', e => { touch0=null; e.preventDefault(); inputManager.command('BRAKE'); brakeBtn.classList.add('down'); hud3d?.control('brake', true); });
+brakeBtn.addEventListener('pointerdown', e => { e.preventDefault(); inputManager.command('BRAKE'); brakeBtn.classList.add('down'); hud3d?.control('brake', true); });
 for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) brakeBtn.addEventListener(ev, () => { inputManager.command('BRAKE', false); brakeBtn.classList.remove('down'); hud3d?.control('brake', false); });
 const gasBtn = $('gasBtn');
-gasBtn.addEventListener('pointerdown', e => { touch0=null; e.preventDefault(); inputManager.command('ACCELERATE'); gasBtn.classList.add('down'); hud3d?.control('gas', true); });
+gasBtn.addEventListener('pointerdown', e => { e.preventDefault(); inputManager.command('ACCELERATE'); gasBtn.classList.add('down'); hud3d?.control('gas', true); });
 for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) gasBtn.addEventListener(ev, () => { inputManager.command('ACCELERATE', false); gasBtn.classList.remove('down'); hud3d?.control('gas', false); });
 addEventListener('blur', () => inputManager.release());
 const hornBtn = $('hornBtn');
@@ -1290,7 +1293,7 @@ function startRun() {
   $('title').hidden = true; $('over').hidden = true; $('hud').hidden = false; $('touch').hidden = false; $('radio').hidden = false;
   musicInit(); engineInit();
   popsEl.innerHTML = '';
-  pop('Swipe to steer · tap GAS to drive');
+  pop('Hold GAS · swipe the road to steer');
   updateHud();
   canvas.focus?.();
   events.emit('game:start', { route: DATA.route });
