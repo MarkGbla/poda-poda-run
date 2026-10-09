@@ -388,7 +388,7 @@ window.PODA.districts = window.PODA.districts || {};
   const OKADA_TANK = [[0.52, 0.8], [0.5, 0.98], [0.3, 1.03], [0.06, 0.96], [0.02, 0.8]];
   const OKADA_COLS = [0xc8242b, 0x1b1b1b, 0x1f4fa8, 0xb9bec2, 0x7a1f2b];
   const HELMETS = [0xc8242b, 0xf4f4f0, 0x1b1b1b, 0xf2c230, 0x1f4fa8];
-  V.okada = function (kit) {
+  V.okada = function (kit, options = {}) {
     init(kit);
     const g = new T.Group(), col = K.pick(OKADA_COLS), chrome = 0xc4c8cc;
     for (const z of [-0.64, 0.62]) wheel(g, 0, 0.3, z, 0.3, 0.1, 0.12, chrome, 12);
@@ -409,9 +409,11 @@ window.PODA.districts = window.PODA.districts || {};
     box(g, 0xf4f4f0, 0.17, 0.1, 0.01, 0, 0.69, 0.93);                        // plate
     const rider = seatPerson(g, 'rider', 0, 0.92, 0.1, { lappa: false });
     if (Math.random() < 0.85) helmet(rider, K.pick(HELMETS));
-    if (Math.random() < 0.8) {
+    if (options.player || Math.random() < 0.8) {
       const pass = seatPerson(g, 'rider', 0, 0.96, 0.5, {});
-      if (Math.random() < 0.15) helmet(pass, K.pick(HELMETS));
+      if (options.player || Math.random() < 0.15) helmet(pass, K.pick(HELMETS));
+      g.userData.passenger = pass;
+      if (options.player) pass.visible = false;
     }
     return { g, wid: 0.9, len: 1.9, weave: true };
   };

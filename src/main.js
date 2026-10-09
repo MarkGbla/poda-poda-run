@@ -526,8 +526,8 @@ function makeKekeh() {
   const d = makePerson({ lappa: false, role: 'driver' }); d.rotation.y = Math.PI; d.position.set(0, 0.35, -0.6); d.scale.setScalar(0.85); g.add(d);
   return { g, wid: 1.5, len: 2.8 };
 }
-function makeOkada() {
-  if (PLUG.vehicles.okada) return PLUG.vehicles.okada(kit);
+function makeOkada(options = {}) {
+  if (PLUG.vehicles.okada) return PLUG.vehicles.okada(kit, options);
   const g = new THREE.Group();
   add(g, G.box, pick([0xd8333a, 0x1c1c1c, 0x2a7de1]), 0.32, 0.45, 1.5, 0, 0.7, 0, true);
   add(g, G.cyl, 0x161616, 0.62, 0.14, 0.62, 0, 0.32, -0.75).rotation.z = Math.PI / 2;
@@ -535,6 +535,8 @@ function makeOkada() {
   const r = makePerson({ lappa: false, cast: true, role: 'rider' }); r.rotation.y = Math.PI; r.position.set(0, 0.3, -0.15); r.scale.setScalar(0.9); g.add(r);
   add(g, G.sph, 0xd8333a, 0.4, 0.38, 0.42, 0, 1.86, -0.15);
   const p = makePerson({ cast: true, role: 'rider' }); p.rotation.y = Math.PI; p.position.set(0, 0.36, 0.45); p.scale.setScalar(0.88); g.add(p);
+  g.userData.passenger = p;
+  if (options.player) p.visible = false;
   return { g, wid: 0.9, len: 1.9, weave: true };
 }
 function makeCar() {
@@ -855,8 +857,8 @@ function resetRun() {
     style: 0, fastTime: 0, multiplier: 1,
     reversing: false, reverseSpeed: RULES.REVERSE_SPEED, condition: RULES.CONDITION,
   });
-  // start half-full; each passenger knows where they're going
-  for (let i = 0; i < Math.ceil(CAP / 2); i++) S.pax.push(randi(0, 2));
+  // Buses start half-full; the motorcycle starts ready for its first pickup.
+  for (let i = 0; i < (vehicleId === 'okada' ? 0 : Math.ceil(CAP / 2)); i++) S.pax.push(randi(0, 2));
   for (let z = -45; z > -200; z -= 36) spawnRow(z);
   renderSeats(); renderBody();
 }
@@ -900,8 +902,15 @@ function beginDwell() {
   S.pax = remaining;
   S.dwell = 1.4 + 0.18 * (dropN + board);
   S.dwellPlan = { dropN, board, perfect: RULES.stopGrade(s.z) === 'perfect' };
-  const door = new THREE.Vector3(S.x + 1.3, 0.2, -0.75 - s.z);
-  s.waiting.slice(0, board).forEach((p, i) => s.walkers.push({ p, to: door.clone(), delay: i * 0.18, vanish: true }));
+  const bike = vehicleId === 'okada';
+  const door = new THREE.Vector3(S.x + (bike ? 0.6 : 1.3), 0.2, (bike ? 0.5 : -0.75) - s.z);
+  const boardingDelay = bike && dropN ? 1.2 : 0;
+  if (bike) {
+    renderSeats();
+    const walkTime = board ? s.waiting[0].position.distanceTo(door) / 3.2 : 0;
+    S.dwell = Math.max(1.2, boardingDelay + walkTime + 0.6);
+  }
+  s.waiting.slice(0, board).forEach((p, i) => s.walkers.push({ p, to: door.clone(), delay: boardingDelay + i * 0.18, vanish: true }));
   for (let i = 0; i < dropN; i++) {
     const p = makePerson({ cast: true }); p.position.copy(door); s.g.add(p);
     s.walkers.push({ p, to: new THREE.Vector3(ROAD_HALF + rand(2, 3), 0.2, door.z + rand(-3, 3)), delay: i * 0.18, vanish: false });
@@ -1357,6 +1366,7 @@ const hudEls = { cash: $('cash'), dist: $('dist'), kmh: $('kmh'), stopName: $('s
 const seatsEl = $('seats');
 for (let i = 0; i < CAP; i++) seatsEl.appendChild(document.createElement('i'));
 function renderSeats() {
+  if (player?.userData.passenger && vehicleId === 'okada') player.userData.passenger.visible = S.pax.length > 0;
   if(seatsEl.children.length!==CAP){seatsEl.replaceChildren();for(let i=0;i<CAP;i++)seatsEl.appendChild(document.createElement('i'));}
   const drops = paxForStop();
   [...seatsEl.children].forEach((el, i) => { el.className = i < drops ? 'drop' : i < S.pax.length ? 'on' : ''; });
@@ -1570,7 +1580,7 @@ function buildPlayer() {
     scene.remove(player);
     player.traverse(part => { if (part.userData.baked) part.geometry.dispose(); });
   }
-  player = vehicleId==='poda' ? makePoda(selectedSlogan, (store.get('poda-board')&&store.get('poda-board')!=='auto'?store.get('poda-board'):DATA.route[0].toUpperCase()+' – '+DATA.route.at(-1).toUpperCase()), SCHEMES[0], true, selectedLivery) : ({kekeh:makeKekeh,taxi:makeCar,okada:makeOkada,waka:makeWakaFine}[vehicleId]()).g;
+  player = vehicleId==='poda' ? makePoda(selectedSlogan, (store.get('poda-board')&&store.get('poda-board')!=='auto'?store.get('poda-board'):DATA.route[0].toUpperCase()+' – '+DATA.route.at(-1).toUpperCase()), SCHEMES[0], true, selectedLivery) : ({kekeh:makeKekeh,taxi:makeCar,okada:() => makeOkada({ player: true }),waka:makeWakaFine}[vehicleId]()).g;
   if(vehicleId==='poda' && ['salone','tektem'].includes(store.get('poda-sticker'))){
     const style=store.get('poda-sticker'),key='sticker:'+style;
     if(!mats[key]){const tex=canvasTex(256,96,(g,w,h)=>{g.fillStyle='#f8efd9';g.fillRect(0,0,w,h);if(style==='salone'){['#1eb53a','#fff','#0072c6'].forEach((c,i)=>{g.fillStyle=c;g.fillRect(0,i*h/3,w,h/3);});}else{g.fillStyle='#254b37';g.font='bold 38px sans-serif';g.fillText('TEK TEM!',20,62);}});mats[key]=new THREE.MeshLambertMaterial({map:tex});}
@@ -1579,12 +1589,18 @@ function buildPlayer() {
   apprentice = player.userData.apprentice;
   const parent = apprentice?.parent;
   if (apprentice) parent.remove(apprentice);
+  const bikePassenger = player.userData.passenger;
+  if (bikePassenger) player.remove(bikePassenger);
   bake(player, true);
   player.traverse(m=>{if(m.isMesh&&m.userData.baked){
     const old=m.material,key='hero:'+old.uuid;
     if(!mats[key])mats[key]=new THREE.MeshStandardMaterial({map:old.map,color:old.color,vertexColors:old.vertexColors,roughness:.78,metalness:.12});
     m.material=mats[key];m.receiveShadow=true;
   }});
+  if (bikePassenger) {
+    player.add(bikePassenger);
+    bikePassenger.visible = (S.pax?.length || 0) > 0;
+  }
   if (apprentice) parent.add(apprentice);
   scene.add(player);
   if(contactShadow)contactShadow.scale.set(CONFIG.vehicles[vehicleId].width/2.1,CONFIG.vehicles[vehicleId].length/5.4,1);
@@ -1798,7 +1814,13 @@ function update(dt) {
     for (const w of s.walkers) {
       if ((w.delay -= dt) > 0) continue;
       const to = w.to, p = w.p.position, dx = to.x - p.x, dz = to.z - p.z, len = Math.hypot(dx, dz);
-      if (len < 0.15) { if (w.vanish) w.p.visible = false; continue; }
+      if (len < 0.15) {
+        if (w.vanish) {
+          w.p.visible = false;
+          if (vehicleId === 'okada' && S.dwell > 0 && player.userData.passenger) player.userData.passenger.visible = true;
+        }
+        continue;
+      }
       const st = Math.min(len, 3.2 * dt); p.x += dx / len * st; p.z += dz / len * st; w.p.rotation.y = Math.atan2(dx, dz);
       if (PLUG.people && PLUG.people.walk) PLUG.people.walk(w.p, S.time * 1.6);
     }

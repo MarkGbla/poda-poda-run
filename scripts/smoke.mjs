@@ -305,6 +305,15 @@ async function main() {
         errors.slice(before).join('; ') || suffix);
     }
 
+    /* --- motorcycle starts ready to collect its single passenger --- */
+    await page.evaluate(() => localStorage.setItem('poda-vehicle', 'okada'));
+    await page.goto(url, { waitUntil: 'load' });
+    await page.waitForSelector('#startBtn', { timeout: 20000 });
+    await safeClick('#startBtn', 'start motorcycle ride');
+    await page.waitForTimeout(1800);
+    check('motorcycle starts with one empty passenger seat',
+      (await page.locator('#paxN').textContent()).trim() === '0/1');
+
     /* --- external requests --- */
     const uniqueHosts = [...new Set(cdnRequests.map(u => new URL(u).host))];
     if (args['offline-cdn']) {
