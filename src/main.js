@@ -8,6 +8,8 @@ import { createScorePoster } from './ui/ScorePoster.js';
 import './simulation/systems/TrafficAI.js';
 import './data/GameConfig.js';
 import './simulation/systems/JumpSystem.js';
+import * as THREE from 'three';
+import { createFreetownAerial } from './world/FreetownAerial.js';
 import { createWorkshop } from './assets/props/workshop.js';
 import { createRoleDecorator } from './assets/people/roles.js';
 import { createBuildingFactory } from './assets/buildings/buildingFactory.js';
@@ -37,7 +39,6 @@ import './services/ApiClient.js';
 
 (() => {
 'use strict';
-const THREE = window.THREE;
 const gameURL = 'https://podapodarun.com/';
 
 /* ================================================================
@@ -525,8 +526,8 @@ function makeKekeh() {
   const d = makePerson({ lappa: false, role: 'driver' }); d.rotation.y = Math.PI; d.position.set(0, 0.35, -0.6); d.scale.setScalar(0.85); g.add(d);
   return { g, wid: 1.5, len: 2.8 };
 }
-function makeOkada() {
-  if (PLUG.vehicles.okada) return PLUG.vehicles.okada(kit);
+function makeOkada(options = {}) {
+  if (PLUG.vehicles.okada) return PLUG.vehicles.okada(kit, options);
   const g = new THREE.Group();
   add(g, G.box, pick([0xd8333a, 0x1c1c1c, 0x2a7de1]), 0.32, 0.45, 1.5, 0, 0.7, 0, true);
   add(g, G.cyl, 0x161616, 0.62, 0.14, 0.62, 0, 0.32, -0.75).rotation.z = Math.PI / 2;
@@ -534,6 +535,8 @@ function makeOkada() {
   const r = makePerson({ lappa: false, cast: true, role: 'rider' }); r.rotation.y = Math.PI; r.position.set(0, 0.3, -0.15); r.scale.setScalar(0.9); g.add(r);
   add(g, G.sph, 0xd8333a, 0.4, 0.38, 0.42, 0, 1.86, -0.15);
   const p = makePerson({ cast: true, role: 'rider' }); p.rotation.y = Math.PI; p.position.set(0, 0.36, 0.45); p.scale.setScalar(0.88); g.add(p);
+  g.userData.passenger = p;
+  if (options.player) p.visible = false;
   return { g, wid: 0.9, len: 1.9, weave: true };
 }
 function makeCar() {
@@ -854,8 +857,8 @@ function resetRun() {
     style: 0, fastTime: 0, multiplier: 1,
     reversing: false, reverseSpeed: RULES.REVERSE_SPEED, condition: RULES.CONDITION,
   });
-  // start half-full; each passenger knows where they're going
-  for (let i = 0; i < Math.ceil(CAP / 2); i++) S.pax.push(randi(0, 2));
+  // Buses start half-full; the motorcycle starts ready for its first pickup.
+  for (let i = 0; i < (vehicleId === 'okada' ? 0 : Math.ceil(CAP / 2)); i++) S.pax.push(randi(0, 2));
   for (let z = -45; z > -200; z -= 36) spawnRow(z);
   renderSeats(); renderBody();
 }
@@ -899,8 +902,15 @@ function beginDwell() {
   S.pax = remaining;
   S.dwell = 1.4 + 0.18 * (dropN + board);
   S.dwellPlan = { dropN, board, perfect: RULES.stopGrade(s.z) === 'perfect' };
-  const door = new THREE.Vector3(S.x + 1.3, 0.2, -0.75 - s.z);
-  s.waiting.slice(0, board).forEach((p, i) => s.walkers.push({ p, to: door.clone(), delay: i * 0.18, vanish: true }));
+  const bike = vehicleId === 'okada';
+  const door = new THREE.Vector3(S.x + (bike ? 0.6 : 1.3), 0.2, (bike ? 0.5 : -0.75) - s.z);
+  const boardingDelay = bike && dropN ? 1.2 : 0;
+  if (bike) {
+    renderSeats();
+    const walkTime = board ? s.waiting[0].position.distanceTo(door) / 3.2 : 0;
+    S.dwell = Math.max(1.2, boardingDelay + walkTime + 0.6);
+  }
+  s.waiting.slice(0, board).forEach((p, i) => s.walkers.push({ p, to: door.clone(), delay: boardingDelay + i * 0.18, vanish: true }));
   for (let i = 0; i < dropN; i++) {
     const p = makePerson({ cast: true }); p.position.copy(door); s.g.add(p);
     s.walkers.push({ p, to: new THREE.Vector3(ROAD_HALF + rand(2, 3), 0.2, door.z + rand(-3, 3)), delay: i * 0.18, vanish: false });
@@ -1194,7 +1204,7 @@ function syncSoundButtons() {
   $('pauseMute').querySelector('b').textContent = muted ? 'Sound off' : 'Sound on';
   $('pauseMute').setAttribute('aria-pressed', String(!muted));
 }
-function toggleMute() { muted = !muted; store.set('poda-muted', muted ? '1' : '0'); syncSoundButtons(); }
+function toggleMute() { muted = !muted; store.set('poda-muted', muted ? '1' : '0'); syncSoundButtons(); if (muted) pauseRunAudio(); }
 syncSoundButtons();
 function tone(f, dur, type, vol, f2, when = 0) {
   const a = audio(); if (!a || muted) return;
@@ -1307,17 +1317,29 @@ function engineTick() {
   engine.gain.gain.setTargetAtTime(on ? (S.speed < 0.5 ? 0.22 : 0.3 + 0.35 * sp) : 0, t, 0.2);
   engine.lp.frequency.setTargetAtTime(700 + 2600 * sp + (pushing ? 500 : 0), t, 0.2);
 }
-document.addEventListener('visibilitychange', () => {
+function pauseRunAudio() {
+  aux.el.pause();
+  aux.el.volume = 0;
   if (!ac) return;
-  if (document.hidden) ac.suspend(); else ac.resume();   // stop all sound and audio work in background tabs
+  for (const gain of [music.gain?.gain, engine.gain?.gain]) {
+    if (!gain) continue;
+    gain.cancelScheduledValues(ac.currentTime);
+    gain.setValueAtTime(0, ac.currentTime);
+  }
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { pauseRunAudio(); ac?.suspend(); }
+  else if (state === 'play') ac?.resume();
 });
+addEventListener('pagehide', () => { pauseRunAudio(); ac?.suspend(); });
 
 function auxLabel() {
   const t = aux.list.length ? aux.list[aux.i].name : 'Salone Riddim';
   $('auxBtn').innerHTML = '♪ <b></b> · AUX'; $('auxBtn').querySelector('b').textContent = t;
 }
 aux.el.addEventListener('ended', () => {
-  if (!aux.list.length) return; aux.i = (aux.i + 1) % aux.list.length; aux.el.src = aux.list[aux.i].url; aux.el.play().catch(() => {}); auxLabel(); });
+  if (!aux.list.length || state !== 'play' || muted || document.hidden) return;
+  aux.i = (aux.i + 1) % aux.list.length; aux.el.src = aux.list[aux.i].url; aux.el.play().catch(() => {}); auxLabel(); });
 $('auxBtn').addEventListener('click', () => $('auxFile').click());
 $('auxFile').addEventListener('change', e => {
   const files = [...e.target.files]; if (!files.length) return;
@@ -1344,6 +1366,7 @@ const hudEls = { cash: $('cash'), dist: $('dist'), kmh: $('kmh'), stopName: $('s
 const seatsEl = $('seats');
 for (let i = 0; i < CAP; i++) seatsEl.appendChild(document.createElement('i'));
 function renderSeats() {
+  if (player?.userData.passenger && vehicleId === 'okada') player.userData.passenger.visible = S.pax.length > 0;
   if(seatsEl.children.length!==CAP){seatsEl.replaceChildren();for(let i=0;i<CAP;i++)seatsEl.appendChild(document.createElement('i'));}
   const drops = paxForStop();
   [...seatsEl.children].forEach((el, i) => { el.className = i < drops ? 'drop' : i < S.pax.length ? 'on' : ''; });
@@ -1472,6 +1495,7 @@ function startRun() {
 function pauseRun() {
   if (state !== 'play') return;
   changeState('paused');
+  pauseRunAudio();
   inputManager.release();
   $('pause').hidden = false; $('touch').hidden = true;
   $('radio').inert = true;
@@ -1488,6 +1512,7 @@ function pauseRun() {
 }
 function resumeRun() {
   if (state !== 'paused' || $('leaveRun').open) return;
+  ac?.resume();
   changeState('play'); clock.reset(); canvas.focus();
   $('pause').hidden = true; $('touch').hidden = false;
   $('radio').inert = false;
@@ -1497,6 +1522,7 @@ function resumeRun() {
 function endRun(completed = false) {
   if (state === 'over' || state === 'complete') return;
   changeState(completed ? 'complete' : 'over');
+  pauseRunAudio();
   S.over = true; S.completed = completed;
   inputManager.release();
   $('pause').hidden = true; $('radio').hidden = true; $('touch').hidden = true; $('hud').hidden = true;
@@ -1534,6 +1560,7 @@ function endRun(completed = false) {
 }
 function returnHome() {
   if (!isFinished()) return;
+  pauseRunAudio();
   runSerial++;
   changeState('attract');
   inputManager.release();
@@ -1553,7 +1580,7 @@ function buildPlayer() {
     scene.remove(player);
     player.traverse(part => { if (part.userData.baked) part.geometry.dispose(); });
   }
-  player = vehicleId==='poda' ? makePoda(selectedSlogan, (store.get('poda-board')&&store.get('poda-board')!=='auto'?store.get('poda-board'):DATA.route[0].toUpperCase()+' – '+DATA.route.at(-1).toUpperCase()), SCHEMES[0], true, selectedLivery) : ({kekeh:makeKekeh,taxi:makeCar,okada:makeOkada,waka:makeWakaFine}[vehicleId]()).g;
+  player = vehicleId==='poda' ? makePoda(selectedSlogan, (store.get('poda-board')&&store.get('poda-board')!=='auto'?store.get('poda-board'):DATA.route[0].toUpperCase()+' – '+DATA.route.at(-1).toUpperCase()), SCHEMES[0], true, selectedLivery) : ({kekeh:makeKekeh,taxi:makeCar,okada:() => makeOkada({ player: true }),waka:makeWakaFine}[vehicleId]()).g;
   if(vehicleId==='poda' && ['salone','tektem'].includes(store.get('poda-sticker'))){
     const style=store.get('poda-sticker'),key='sticker:'+style;
     if(!mats[key]){const tex=canvasTex(256,96,(g,w,h)=>{g.fillStyle='#f8efd9';g.fillRect(0,0,w,h);if(style==='salone'){['#1eb53a','#fff','#0072c6'].forEach((c,i)=>{g.fillStyle=c;g.fillRect(0,i*h/3,w,h/3);});}else{g.fillStyle='#254b37';g.font='bold 38px sans-serif';g.fillText('TEK TEM!',20,62);}});mats[key]=new THREE.MeshLambertMaterial({map:tex});}
@@ -1562,12 +1589,18 @@ function buildPlayer() {
   apprentice = player.userData.apprentice;
   const parent = apprentice?.parent;
   if (apprentice) parent.remove(apprentice);
+  const bikePassenger = player.userData.passenger;
+  if (bikePassenger) player.remove(bikePassenger);
   bake(player, true);
   player.traverse(m=>{if(m.isMesh&&m.userData.baked){
     const old=m.material,key='hero:'+old.uuid;
     if(!mats[key])mats[key]=new THREE.MeshStandardMaterial({map:old.map,color:old.color,vertexColors:old.vertexColors,roughness:.78,metalness:.12});
     m.material=mats[key];m.receiveShadow=true;
   }});
+  if (bikePassenger) {
+    player.add(bikePassenger);
+    bikePassenger.visible = (S.pax?.length || 0) > 0;
+  }
   if (apprentice) parent.add(apprentice);
   scene.add(player);
   if(contactShadow)contactShadow.scale.set(CONFIG.vehicles[vehicleId].width/2.1,CONFIG.vehicles[vehicleId].length/5.4,1);
@@ -1587,7 +1620,8 @@ function openPlayerGarage() {
   if (!player || (state !== 'attract' && !isFinished())) return;
   garageReturnState = state;
   changeState('garage');
-  freeTown();
+  // The aerial is kept, not freed: the garage renders the workshop scene instead,
+  // and closing it returns to the title without rebuilding the map.
   if (!workshop) { workshop=createWorkshop(kit,streetAssets,bake); scene.add(workshop); }
   workshop.visible=true; world.visible=false;
   $('hud').hidden=true; $('radio').hidden=true;
@@ -1704,7 +1738,9 @@ function loop(now) {
     const nearby=ch.position.z > -qualityManager.budget.shadowDistance;
     for(const mesh of ch.userData.content.children)if(mesh.isMesh)mesh.castShadow=nearby;
   }
-  renderer.render(scene, camera);
+  // The title shows the peninsula from above; every other state shows the street.
+  if (state === 'attract' && aerial) renderTown();
+  else renderer.render(scene, camera);
   sampleMetrics(raw);
   if (hud3d && (state === 'play' || demo)) {
     try { hud3d.render(renderer); }
@@ -1778,7 +1814,13 @@ function update(dt) {
     for (const w of s.walkers) {
       if ((w.delay -= dt) > 0) continue;
       const to = w.to, p = w.p.position, dx = to.x - p.x, dz = to.z - p.z, len = Math.hypot(dx, dz);
-      if (len < 0.15) { if (w.vanish) w.p.visible = false; continue; }
+      if (len < 0.15) {
+        if (w.vanish) {
+          w.p.visible = false;
+          if (vehicleId === 'okada' && S.dwell > 0 && player.userData.passenger) player.userData.passenger.visible = true;
+        }
+        continue;
+      }
       const st = Math.min(len, 3.2 * dt); p.x += dx / len * st; p.z += dz / len * st; w.p.rotation.y = Math.atan2(dx, dz);
       if (PLUG.people && PLUG.people.walk) PLUG.people.walk(w.p, S.time * 1.6);
     }
@@ -1913,49 +1955,23 @@ function garage() {
   (function spin() { renderer.render(scene, camera); requestAnimationFrame(spin); })();
 }
 
-/* ---------- Title backdrop: slow aerial orbit over the downtown Freetown diorama ----------
-   Decoded from town-model.js (gzipped int16 positions + per-triangle palette), one draw call.
-   Freed as soon as a run starts, so it costs nothing during play. */
-const town = { scene: null, cam: new THREE.PerspectiveCamera(42, 1, 1, 900), mesh: null };
-async function loadTown() {
-  if (!window.PODA_TOWN || !window.DecompressionStream || demo || params.has('district') || params.has('garage')) return;
-  const b64 = window.PODA_TOWN, bin = new Uint8Array(b64.length * 3 / 4 | 0);
-  const raw = atob(b64); for (let i = 0; i < raw.length; i++) bin[i] = raw.charCodeAt(i);
-  window.PODA_TOWN = null;
-  const buf = await new Response(new Blob([bin]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
-  const hl = new DataView(buf).getUint32(0, true);
-  const head = JSON.parse(new TextDecoder().decode(new Uint8Array(buf, 4, hl)));
-  let off = 4 + hl; off += (4 - off % 4) % 4;
-  const n = head.tris * 9, q = new Int16Array(buf, off, n), fc = new Uint8Array(buf, off + n * 2, head.tris);
-  const pos = new Float32Array(n), col = new Float32Array(n);
-  for (let i = 0; i < n; i++) pos[i] = (q[i] + 32767) * head.scale + head.lo[i % 3];
-  for (let t = 0; t < head.tris; t++) { const c = head.palette[fc[t]]; for (let k = 0; k < 9; k += 3) col.set(c, t * 9 + k); }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
-  geo.computeVertexNormals();                                   // flat, low-poly shading
-  for (const k of ['position', 'color', 'normal']) geo.attributes[k].onUpload(function () { this.array = null; }); // drop CPU copies once on the GPU
-  if (state !== 'attract') { geo.dispose(); return; }
-  const sc = new THREE.Scene();
-  sc.background = scene.background;
-  sc.fog = new THREE.Fog(0xcfe3e8, 260, 520);
-  sc.add(new THREE.HemisphereLight(0xf2f8ff, 0x8a5a3a, 0.85));
-  const dl = new THREE.DirectionalLight(0xfff0d2, 0.75); dl.position.set(-60, 120, 70); sc.add(dl);
-  town.mesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true }));
-  town.mesh.matrixAutoUpdate = false; sc.add(town.mesh);
-  town.scene = sc;
-  resize();
+/* ---------- Title backdrop: a bird's-eye diorama of the Freetown peninsula ----------
+   Generated geometry, not map data: the coastline, the estuary and the
+   mountains are built from a height function at boot. Lives in its own scene
+   and is disposed the moment a run starts, so it costs nothing while driving. */
+let aerial = null;
+function loadTown() {
+  if (demo || params.has('district') || params.has('garage') || benchmark) return;
+  aerial = createFreetownAerial(THREE, { canvasTex, fitText });
 }
 function freeTown() {
-  if (!town.mesh) return;
-  town.mesh.geometry.dispose(); town.mesh.material.dispose();
-  town.scene = town.mesh = null;
+  if (!aerial) return;
+  aerial.dispose();
+  aerial = null;
 }
-function renderTown(t) {
-  const a = t * 0.00006 + 0.6, r = 135;
-  town.cam.position.set(Math.sin(a) * r, 52 + Math.sin(t * 0.0002) * 8, Math.cos(a) * r);
-  town.cam.lookAt(0, 4, 0);
-  renderer.render(town.scene, town.cam);
+function renderTown() {
+  aerial.update(performance.now() * 0.001, camera.aspect, reduceMotion);
+  renderer.render(aerial.scene, aerial.camera);
 }
 
 let baseFov = 58;
@@ -1966,7 +1982,7 @@ function resize() {
   baseFov = w / h < 0.8 ? 68 : 58;
   camera.fov = baseFov;
   camera.updateProjectionMatrix();
-  town.cam.aspect = w / h; town.cam.fov = w / h < 0.8 ? 62 : 42; town.cam.updateProjectionMatrix();
+  // The aerial sets its own aspect and field of view each frame in update().
   if (hud3d) hud3d.resize(w, h);
 }
 addEventListener('resize', resize);
@@ -2015,6 +2031,12 @@ fontsReady.catch(() => {}).then(() => {
   $('qualityProfile').value = savedQuality;
   qualityManager.setProfile(savedQuality);
   resize();
+  // Offline support. Production only: in development it would serve stale
+  // assets back over Vite's hot reload.
+  if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js').catch(() => {});
+  }
+  loadTown();
   if (demo && !benchmark) startRun();
   // The actual player vehicle is the title showcase; no separate town scene is allocated.
   if (benchmark) setupBenchmark();

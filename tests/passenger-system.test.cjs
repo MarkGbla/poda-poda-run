@@ -17,3 +17,14 @@ test('missed passengers are lost and other destinations remain', () => {
   const result = passengers.missStop([0, 1, 0, 3]);
   assert.deepEqual(result, { lost: 2, remaining: [1, 3] });
 });
+
+test('motorcycle drops its passenger before accepting one replacement', () => {
+  const occupied = passengers.planStop([2], 5, 1, 5, 1);
+  assert.equal(occupied.board, 0);
+  assert.deepEqual(occupied.remaining, [2]);
+  const exchange = passengers.planStop([0], 5, 2, 5, 1);
+  assert.deepEqual(exchange, { dropN: 1, board: 1, remaining: [] });
+  const onboard = passengers.boardPassengers(exchange.remaining, exchange.board, 2, 5, () => 1);
+  assert.deepEqual(passengers.advanceDestinations(onboard), [0]);
+  assert.deepEqual(passengers.planStop([0], 5, 5, 5, 1), { dropN: 1, board: 0, remaining: [] });
+});

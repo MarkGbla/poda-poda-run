@@ -20,7 +20,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Outfit:wght@400;600;800&display=swap">
+<!-- Loaded without blocking the first paint: on a weak link a blocking
+     cross-origin stylesheet holds the whole page back, and the game is perfectly
+     readable in the fallback stack while the webfonts arrive (or never do). -->
+<link rel="stylesheet" media="print" onload="this.media='all';this.onload=null" href="https://fonts.googleapis.com/css2?family=Bungee&family=Outfit:wght@400;600;800&display=swap">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Outfit:wght@400;600;800&display=swap"></noscript>
 
 
 
@@ -176,6 +180,5 @@
   </div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <!-- Plug-ins: each file registers into window.PODA (see PLUGINS.md) -->
 <script type="module" src="/src/main.js"></script>

@@ -17,5 +17,8 @@
   },
   "overrides": {
     "sharp": "^0.35.5"
+  },
+  "dependencies": {
+    "three": "0.128.0"
   }
 }
