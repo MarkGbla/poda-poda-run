@@ -222,15 +222,17 @@ export function createFreetownAerial(THREE, { canvasTex, fitText }) {
   scene.fog = new THREE.Fog(0xbcd2d8, 150, 330);
 
   /* ---------- camera ----------
-     A slow drift around the city rather than a full orbit, so the view stays
-     oriented with the sea to the north and the mountains behind. */
+     A slow full orbit around the city, so over one turn every side of the
+     peninsula comes into view: the harbour, the Atlantic coast and the
+     mountains behind. */
   const camera = new THREE.PerspectiveCamera(38, 1, 1, 600);
   const focus = new THREE.Vector3(-4, 0, 14);
+  const ORBIT_SECONDS = 90;
 
   function update(seconds, aspect, reduceMotion) {
-    // Steep enough to read as a map rather than a hillside, with only a gentle
-    // drift so north stays at the top and the mountains stay behind the city.
-    const a = reduceMotion ? -0.18 : -0.18 + Math.sin(seconds * 0.035) * 0.22;
+    // Steep enough to read as a map rather than a hillside. One revolution takes
+    // ORBIT_SECONDS; reduced motion holds the opening angle still.
+    const a = reduceMotion ? -0.18 : -0.18 + (seconds / ORBIT_SECONDS) * Math.PI * 2;
     const radius = aspect < 0.8 ? 112 : 100;
     const height = aspect < 0.8 ? 138 : 112;
     camera.position.set(focus.x + Math.sin(a) * radius, height, focus.z + Math.cos(a) * radius);
