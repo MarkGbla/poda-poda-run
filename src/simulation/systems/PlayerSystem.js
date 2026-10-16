@@ -27,6 +27,11 @@
     else if (braking) run.speed = Math.max(0, run.speed - vehicle.braking * dt);
     else if (run.speed < 0) run.speed = Math.min(0, run.speed + vehicle.braking * dt);
     else run.speed += clamp(target - run.speed, -3 * dt, vehicle.acceleration * (gas ? 1.8 : 1) * dt);
+    // A road with real corners (the CBD) sets run.speedCap: the vehicle eases down
+    // to it on its own brakes so a bend can never be entered too fast. No cap, no change.
+    if (run.speedCap != null && run.speed > run.speedCap && !(run.dwell > 0)) {
+      run.speed = Math.max(run.speedCap, run.speed - vehicle.braking * dt);
+    }
 
     const distance = run.speed * dt;
     // Odometer only ever counts forward, so reversing cannot farm distance score.

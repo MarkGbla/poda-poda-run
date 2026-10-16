@@ -8,7 +8,13 @@
     "deploy": "npm run build && wrangler deploy",
     "preview": "vite preview",
     "test": "node --test tests/*.test.cjs",
-    "smoke": "node scripts/smoke.mjs"
+    "smoke": "node scripts/smoke.mjs",
+    "cbd:fetch": "node scripts/cbd/fetch-osm.mjs",
+    "cbd:build": "node scripts/cbd/build-cbd.mjs",
+    "cbd:views": "node scripts/cbd/capture-views.mjs",
+    "cbd:drive": "node scripts/cbd/drive-cbd.mjs",
+    "central:fetch": "node scripts/central/fetch-osm.mjs",
+    "central:build": "python3 scripts/central/build-central.py"
   },
   "devDependencies": {
     "playwright-core": "^1.64.0",

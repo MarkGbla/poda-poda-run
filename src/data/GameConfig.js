@@ -12,7 +12,7 @@
   };
   const routes = {
     western: {name:'Western Run',difficulty:'Easy',description:'Coast, creek and hillside neighbourhoods',stops:['Goderich','Lumley','Lumley Beach Road','Aberdeen','Congo Cross']},
-    central: {name:'Central Run',difficulty:'Medium',description:'Commercial streets and the heart of town',stops:['Congo Cross','Cotton Tree','PZ','Abacha Street','Eastern Police']},
+    central: {name:'Freetown Central',difficulty:'Long',description:'Mapped streets from Congo Cross through Cotton Tree and PZ to Eastern Police',stops:['Congo Cross','Ascension Town Road','Kingtom Bridge','Kroo Town Road','Cotton Tree','Rokel Commercial Bank','Wilberforce Street','City Hall','Big Market','Lightfoot Boston Street','Law Courts','PZ Junction','Sani Abacha Street','Eastern Police']},
     eastern: {name:'Eastern Run',difficulty:'Hard',description:'Markets, port traffic and the eastern corridor',stops:['Eastern Police','Cline Town','Kissy','Wellington','Calaba Town']},
     crosscity: {name:'Cross-City Run',difficulty:'Long',description:'From the western coast to the east end',stops:['Goderich','Lumley','Lumley Beach Road','Aberdeen','Congo Cross','Cotton Tree','PZ','Abacha Street','Eastern Police','Cline Town','Kissy','Wellington','Calaba Town']},
   };

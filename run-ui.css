@@ -11,6 +11,8 @@
 .play-route .passed i { background:#32b77a; }
 .play-route .current i { background:#ffca39; border-color:#fff2bc; box-shadow:0 0 0 2px #122c29; }
 .play-route .current small { color:#ffe164; }
+.play-route.compact small { display:none; }
+.play-route.compact::after { content:attr(data-caption); position:absolute; top:14px; left:0; right:0; text-align:center; font-size:11px; font-weight:800; color:#fff7df; text-shadow:0 2px 3px #000; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .play-left { position:absolute; top:112px; left:18px; width:164px; display:flex; flex-direction:column; gap:7px; }
 .play-passengers, #hud #stopCard, .play-condition, .play-coins, #hud #dist, .play-speed { background:#16272bc4; border:1px solid #fff6; border-radius:13px; box-shadow:0 3px 0 #06171d77; }
 .play-passengers { display:flex; align-items:center; gap:6px; padding:7px 9px; }
@@ -63,6 +65,8 @@
 .pause-options summary, .result-details summary { cursor:pointer; font-weight:800; padding:8px 0; }
 .pause-options label { display:block; margin:8px 0 3px; }
 .pause-options select { padding:8px; margin-right:6px; color:#172a27; background:#fff; border:1px solid #778778; border-radius:8px; }
+.pause-options .cbd-map-credit { margin: 12px 0 0; }
+.pause-options .cbd-map-credit a { color: #075b45; }
 #pause button:focus-visible, #over button:focus-visible, #over summary:focus-visible { outline:3px solid #118958; outline-offset:4px; }
 .leave-run { width:min(340px,calc(100vw - 64px)); padding:24px; border:3px solid #17382a; border-radius:18px; color:#18372d; background:#fff6df; font:600 15px/1.4 var(--body); }
 .leave-run::backdrop { background:#071720c9; }
@@ -140,6 +144,7 @@
   #hud .play-route { top:auto; bottom:calc(env(safe-area-inset-bottom,0px) + 12px); left:11px; right:11px; gap:3px; }
   #hud .play-route i { height:7px; }
   #hud .play-route small, #hud .play-route .current small { display:none; }
+  #hud .play-route.compact::after { display:none; }
   #hud .play-left { top:calc(env(safe-area-inset-top,0px) + 77px); width:min(142px,42vw); gap:5px; }
   #hud .play-passengers { min-height:36px; }
   #hud #stopCard { padding:7px 9px; }

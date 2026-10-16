@@ -6,6 +6,8 @@ import './simulation/systems/RoadContactSystem.js';
 import { registerEasternDistricts } from './data/EasternDistricts.js';
 import { createScorePoster } from './ui/ScorePoster.js';
 import './simulation/systems/TrafficAI.js';
+import './simulation/systems/SendMeController.js';
+import { createSendMeFactory, animateSendMe } from './assets/vehicles/sendmeRider.js';
 import './data/GameConfig.js';
 import './simulation/systems/JumpSystem.js';
 import * as THREE from 'three';
@@ -17,6 +19,7 @@ import { createLumleyDetails } from './assets/props/lumley.js';
 import { createFreightFactory } from './assets/vehicles/freight.js';
 import { TrafficPool } from './assets/vehicles/trafficPool.js';
 import { createStreetAssets } from './assets/roads/streetAssets.js';
+import { createCbdMode } from './cbd/CbdMode.js';
 import '../vehicles.js';
 import '../districts-west.js';
 import '../districts-east.js';
@@ -80,6 +83,10 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 const fmtLe = n => 'Le ' + Math.round(n).toLocaleString('en-US');
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+// The mapped downtown block is the Central route. Keep ?cbd as an old deep link.
+const CBD_FLAG = new URLSearchParams(location.search).has('cbd');
+let cbd = null;
+let centralMode = null;
 const store = {
   get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
   set(k, v) { try { localStorage.setItem(k, v); return true; } catch (e) { return false; } },
@@ -434,6 +441,8 @@ const PLUG = window.PODA || {};
 PLUG.vehicles = PLUG.vehicles || {}; PLUG.districts = PLUG.districts || {};
 let streetAssets, freight, lumleyDetails, roles;
 const trafficPool = new TrafficPool(bake);
+const makeSendMe = createSendMeFactory(bake);
+const sendMeFrame = {};
 function pooled(key, factory) { return trafficPool.acquire(key, factory); }
 function releaseObstacle(o) { if (o.poolKey) trafficPool.release(o); else drop(o.g); }
 const kit = {};   // filled at boot; handed to every plug-in
@@ -589,20 +598,22 @@ let chunkSerial = 0;
 const hy = ax => Math.max(0, ax - 11) * 0.42;
 
 function buildStatic() {
+  // The straight road and its backdrop; the CBD mode hides this and draws real streets.
+  const staticRoot = new THREE.Group(); staticRoot.name = 'street-static'; scene.add(staticRoot);
   const road = new THREE.Mesh(new THREE.PlaneGeometry(ROAD_HALF * 2, 200), new THREE.MeshStandardMaterial({ map: roadTex, bumpMap: roadDetailTex, bumpScale: .05, roughnessMap: roadDetailTex, roughness: .9, metalness: 0 }));
-  road.rotation.x = -Math.PI / 2; road.position.set(0, 0, -90); road.receiveShadow = true; scene.add(road);
+  road.rotation.x = -Math.PI / 2; road.position.set(0, 0, -90); road.receiveShadow = true; staticRoot.add(road);
   for (const s of [-1, 1]) {
     const channel = new THREE.Mesh(new THREE.PlaneGeometry(.36, 200), M(0x343a36));
-    channel.rotation.x = -Math.PI / 2; channel.position.set(s * (ROAD_HALF + .18), .025, -90); scene.add(channel);
+    channel.rotation.x = -Math.PI / 2; channel.position.set(s * (ROAD_HALF + .18), .025, -90); staticRoot.add(channel);
     const walk = new THREE.Mesh(new THREE.PlaneGeometry(2.64, 200), new THREE.MeshStandardMaterial({ map: walkTex, roughness: 1 }));
     walk.rotation.x = -Math.PI / 2; walk.position.set(s * (ROAD_HALF + 1.68), 0.2, -90); walk.receiveShadow = true;
     if (s < 0) walk.scale.x = -1; // mirror wear onto the roadside edge
-    scene.add(walk);
-    add(scene, G.box, 0x89867b, 0.22, 0.22, 200, s * (ROAD_HALF + 0.05), 0.1, -90);
-    add(scene, G.box, 0x75766b, .12, .22, 200, s * (ROAD_HALF + .36), .1, -90);
+    staticRoot.add(walk);
+    add(staticRoot, G.box, 0x89867b, 0.22, 0.22, 200, s * (ROAD_HALF + 0.05), 0.1, -90);
+    add(staticRoot, G.box, 0x75766b, .12, .22, 200, s * (ROAD_HALF + .36), .1, -90);
   }
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(500, 600), M(0x8a745c));
-  ground.rotation.x = -Math.PI / 2; ground.position.set(0, -0.02, -250); ground.receiveShadow = true; scene.add(ground);
+  ground.rotation.x = -Math.PI / 2; ground.position.set(0, -0.02, -250); ground.receiveShadow = true; staticRoot.add(ground);
 
   // Layered peninsula ridges replace isolated geometric peaks. Both are cheap single meshes.
   const ridgeHeight = (x, near) => (near ? 37 : 77) + Math.sin(x * .011 + (near ? 1 : 0)) * (near ? 12 : 24)
@@ -615,7 +626,7 @@ function buildStatic() {
     }
     const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
     const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: new THREE.Color(color).convertSRGBToLinear(), side: THREE.DoubleSide, fog: false }));
-    scene.add(mesh);
+    staticRoot.add(mesh);
   }
   ridge(-495, false, 0x68858d);
   ridge(-410, true, 0x617d73);
@@ -626,14 +637,14 @@ function buildStatic() {
     add(hillHouses, G.box, pick([0x968f79, 0xb3aa94, 0x819687, 0x9b8374, 0x879497]), w, h, .5, x, y, z);
     if (Math.random() < .6) add(hillHouses, G.box, pick([0x7e655a, 0x76776e, 0x807f75]), w + .2, .45, .65, x, y + h / 2, z);
   }
-  scene.add(hillHouses); bake(hillHouses);
+  staticRoot.add(hillHouses); bake(hillHouses);
   for (const m of hillHouses.children) m.material = new THREE.MeshBasicMaterial({ vertexColors: true, fog: false });
   const cloudG = new THREE.Group();
   for (let i = 0; i < 6; i++) {
     const cx = rand(-320, 320), cy = rand(120, 190), cz = rand(-520, -380);
     for (let j = 0; j < 4; j++) add(cloudG, G.sph, 0xffffff, rand(18, 34), rand(8, 13), rand(10, 16), cx + j * 14 - 20, cy + rand(-2, 3), cz + rand(-4, 4));
   }
-  scene.add(cloudG); bake(cloudG);
+  staticRoot.add(cloudG); bake(cloudG);
   for (const m of cloudG.children) m.material = new THREE.MeshLambertMaterial({ vertexColors: true, emissive: 0xa8b6bc, fog: false });
 
   // hillside slopes, one pair per chunk
@@ -706,6 +717,7 @@ function districtFor(distAhead) {
   return stopName(distAhead < toStop ? idx : idx + 1);
 }
 function fillChunk(ch) {
+  if (cbd) return;                      // CBD scenery is static and geographic, not chunked
   const u = ch.userData, c = u.content;
   c.traverse(m => { if (m.userData.baked) m.geometry.dispose(); });
   while (c.children.length) c.remove(c.children[0]);
@@ -819,8 +831,11 @@ function defaultFill(c) {
 const RULES = window.PODA_RUN_RULES;
 const CONFIG = window.PODA_CONFIG;
 let vehicleId = CONFIG.vehicles[store.get('poda-vehicle')] ? store.get('poda-vehicle') : 'poda';
-let routeId = CONFIG.routes[store.get('poda-route')] ? store.get('poda-route') : 'western';
+let routeId = CBD_FLAG ? 'central' : CONFIG.routes[store.get('poda-route')] ? store.get('poda-route') : 'western';
 let CAP = CONFIG.vehicles[vehicleId].capacity;
+const routeStops = () => cbd ? cbd.stopNames : CONFIG.routes[routeId].stops;
+const routeKey = () => routeId;
+const routeName = id => id === 'cbd' ? 'Freetown Central' : CONFIG.routes[id]?.name;
 DATA.route = CONFIG.routes[routeId].stops;
 const S = {};
 let player, apprentice, contactShadow, workshop;
@@ -858,6 +873,7 @@ function resetRun() {
     reversing: false, reverseSpeed: RULES.REVERSE_SPEED, condition: RULES.CONDITION,
   });
   // Buses start half-full; the motorcycle starts ready for its first pickup.
+  if (cbd) { cbd.reset(); S.toStop = S.legLen = cbd.distanceToStop(1); }
   for (let i = 0; i < (vehicleId === 'okada' ? 0 : Math.ceil(CAP / 2)); i++) S.pax.push(randi(0, 2));
   for (let z = -45; z > -200; z -= 36) spawnRow(z);
   renderSeats(); renderBody();
@@ -883,7 +899,7 @@ function spawnStop() {
   g.userData.ownedTextures=[zone,sign.material.map];
   const zm = new THREE.Mesh(new THREE.PlaneGeometry(3.0, 16), new THREE.MeshBasicMaterial({ map: zone, transparent: true, opacity: 0.85, depthWrite: false }));
   zm.rotation.x = -Math.PI / 2; zm.position.set(LANES[2], 0.03, 0); g.add(zm);
-  const d0 = PLUG.districts[forcedDistrict || stopName(S.stopIdx)];
+  const d0 = cbd ? null : PLUG.districts[forcedDistrict || stopName(S.stopIdx)];
   if (d0 && d0.landmark) d0.landmark(g, kit, { name: stopName(S.stopIdx) });
   bake(g);
   const waiting = [];
@@ -935,7 +951,7 @@ function advanceStop() {
   if (S.stopIdx === DATA.route.length - 1) { endRun(true); return; }
   S.pax = window.PODA_PassengerSystem.advanceDestinations(S.pax);
   S.stopIdx = S.stopIdx + 1;
-  S.legLen = S.toStop = rand(420, 560);
+  S.legLen = S.toStop = cbd ? cbd.distanceToStop(S.stopIdx) : rand(420, 560);
 }
 function missStop() {
   const s = stopObj; s.missed = true;
@@ -963,6 +979,7 @@ function coinFree(c) { _cm.makeScale(0, 0, 0); coinIM.setMatrixAt(c.slot, _cm); 
 const LANE_SPEED = [10.5, 8, 5.5];
 const heading = o => (o.person ? (o.vx > 0 ? Math.PI / 2 : -Math.PI / 2) : (o.vx > 0 ? -Math.PI / 2 : Math.PI / 2));
 function spawnRow(z) {
+  if (cbd && !cbd.canSpawnAt(z)) return;   // keep corners and the blind run after them clear
   const prog = clamp(S.dist / 5000, 0, 1);
   const n = Math.random() < 0.3 + 0.35 * prog ? 2 : 1;
   const stopZ = -S.toStop;
@@ -970,7 +987,7 @@ function spawnRow(z) {
   let placed = 0;
   for (const lane of lanes) {
     if (placed >= n) break;
-    if (lane === 2 && Math.abs(z - stopZ) < 55) continue;
+    if (lane === 2 && (Math.abs(z - stopZ) < 55 || (cbd && cbd.nearStop(z, 55)))) continue;   // CBD stops sit closer than one spawn horizon apart
     if(obstacles.some(o=>Math.abs(o.z-z)<22&&Math.abs(o.x-LANES[lane])<3))continue;
     const district=districtFor(-z);
     const freightDistrict=['Cline Town','Wellington','Kissy'].includes(district);
@@ -978,7 +995,7 @@ function spawnRow(z) {
     let o, speed = LANE_SPEED[lane], cross = 0;
     if (r < 0.18) o = pooled('taxi', makeCar);
     else if (r < 0.34) o = pooled('kekeh', makeKekeh);
-    else if (r < 0.46) o = pooled('okada', makeOkada);
+    else if (r < 0.46) o = window.PODA_SendMe.config.enabled && Math.random() < window.PODA_SendMe.config.motorcycleShare ? pooled('sendme', makeSendMe) : pooled('okada', makeOkada);
     else if (r < 0.56) o = pooled('poda', makeTrafficPoda);
     else if (r < 0.62) { o = lane === 2 ? pooled('kekeh', makeKekeh) : pooled('waka', makeWakaFine); speed = 4; }
     else if (r < 0.70) { const type=pick(['box','flatbed','tipper','tanker','container','coach']), variant=randi(0,2); o=pooled(type+variant,()=>freight.make({type,variant})); speed=4; }
@@ -1142,7 +1159,7 @@ for(const [id,r] of Object.entries(CONFIG.routes)) $('routeSelect').add(new Opti
 $('rideSelect').value=vehicleId; $('routeSelect').value=routeId;
 function updateTitleRoute() {
  const ids=Object.keys(CONFIG.routes), index=ids.indexOf(routeId), route=CONFIG.routes[routeId];
- $('titleRouteIndex').textContent=`ROUTE ${String(index+1).padStart(2,'0')} / ${String(ids.length).padStart(2,'0')} · ${route.difficulty.toUpperCase()}`;
+ $('titleRouteIndex').textContent=`ROUTE ${String(index+1).padStart(2,'0')} / ${String(ids.length).padStart(2,'0')} · ${cbd ? 'MAPPED STREETS' : route.difficulty.toUpperCase()}`;
  $('titleRouteName').textContent=route.name;
  $('titleRouteStops').textContent=`${route.stops[0]} → ${route.stops.at(-1)} · ${route.stops.length} stops`;
 }
@@ -1154,14 +1171,36 @@ for (const [id, direction] of [['titleRoutePrev',-1],['titleRouteNext',1]]) $(id
 function selectionDetails() {
  const v=CONFIG.vehicles[vehicleId],r=CONFIG.routes[routeId];
  $('rideStats').textContent=`${v.capacity} passengers · Speed ${Math.round(v.maxSpeed*3.6)} km/h · Handling ${Math.round(v.handling/18*5)}/5 · Braking ${Math.round(v.braking/30*5)}/5`;
- $('routeDescription').textContent=r.stops.join(' → ')+' · '+r.description+'. Condensed arcade route.';
+ $('routeDescription').textContent=cbd
+   ? 'Congo Cross → Cotton Tree → PZ → Eastern Police · 14 stops on one mapped drive. The CBD streets are part of this route. Bends turn automatically; steer between lanes. Scores stay on this device.'
+   : r.stops.join(' → ')+' · '+r.description+'. Condensed arcade route.';
+ centralStopDetails.hidden = !cbd;
+ if (cbd) {
+   const summary = document.createElement('summary'); summary.textContent = `View all ${cbd.stopNames.length} stops in order`;
+   const list = document.createElement('ol');
+   for (const name of cbd.stopNames) { const item = document.createElement('li'); item.textContent = name; list.append(item); }
+   centralStopDetails.replaceChildren(summary, list);
+ }
  document.querySelector('.garage-tabs').hidden=vehicleId!=='poda';
  for(const panel of document.querySelectorAll('[data-garage-detail]'))panel.hidden=vehicleId!=='poda'||panel.dataset.garageDetail!==garageCategory;
 }
+const centralStopDetails = document.createElement('details');
+centralStopDetails.className = 'central-stop-details';
+$('routeDescription').after(centralStopDetails);
 selectionDetails();
 updateTitleRoute();
 $('rideSelect').addEventListener('change',e=>{vehicleId=e.target.value;store.set('poda-vehicle',vehicleId);buildPlayer();selectionDetails();});
-$('routeSelect').addEventListener('change',e=>{routeId=e.target.value;store.set('poda-route',routeId);DATA.route=CONFIG.routes[routeId].stops;buildPlayer();selectionDetails();updateTitleRoute();});
+$('routeSelect').addEventListener('change',e=>{
+  routeId=e.target.value; store.set('poda-route',routeId);
+  if (CBD_FLAG) { const url = new URL(location.href); url.searchParams.delete('cbd'); history.replaceState(null, '', url); }
+  if (routeId === 'central') {
+    if (!centralMode) centralMode = createCbdMode({ THREE, kit, scene, world, bake, textures: { road: roadTex, roadDetail: roadDetailTex, walk: walkTex } });
+    cbd = centralMode;
+  } else { centralMode?.setVisible(false); cbd = null; }
+  PLUG.debug.cbd = cbd;
+  scene.getObjectByName('street-static').visible = !cbd;
+  DATA.route=routeStops(); buildPlayer(); selectionDetails(); updateTitleRoute();
+});
 for(const [id,key,fallback] of [['cargoSelect','poda-cargo','loaded'],['wheelSelect','poda-wheels','steel'],['hornSelect','poda-horn','classic'],['bodyPaint','poda-paint','default'],['rackSelect','poda-rack','fitted'],['bodyTrim','poda-trim','standard'],['routeBoard','poda-board','auto'],['stickerSelect','poda-sticker','none']]){
  $(id).value=store.get(key)||fallback;
  $(id).addEventListener('change',e=>{store.set(key,e.target.value);buildPlayer();if(id==='hornSelect')horn();});
@@ -1385,6 +1424,8 @@ function renderRouteRail() {
   const key = routeId + ':' + S.stopIdx;
   if (key === lastRouteRail) return;
   lastRouteRail = key;
+  $('routeRail').classList.toggle('compact', DATA.route.length > 8);
+  $('routeRail').dataset.caption = `${Math.min(S.stopIdx + 1, DATA.route.length)} / ${DATA.route.length} · ${stopName(S.stopIdx)}`;
   $('routeRail').replaceChildren(...DATA.route.map((name, index) => {
     const stop = document.createElement('span');
     stop.className = index < S.stopIdx ? 'passed' : index === S.stopIdx ? 'current' : '';
@@ -1471,7 +1512,7 @@ function startRun() {
   transitionTime = reduceMotion || demo ? 0 : 1.3;
   if (workshop) workshop.visible = false;
   world.visible = true;
-  CAP=CONFIG.vehicles[vehicleId].capacity; DATA.route=CONFIG.routes[routeId].stops; buildPlayer();
+  CAP=CONFIG.vehicles[vehicleId].capacity; DATA.route=routeStops(); buildPlayer();
   resetRun();
   for(const ch of chunks) fillChunk(ch);
   changeState('play');
@@ -1529,14 +1570,14 @@ function endRun(completed = false) {
   $('shareStatus').textContent = '';
   $('over').classList.toggle('run-complete', completed);
   const result = RULES.summarize(S);
-  lastResult={...result,id:crypto.randomUUID(),date:Date.now(),vehicle:vehicleId,route:routeId};resultVehicle=CONFIG.vehicles[vehicleId].name;resultRoute=CONFIG.routes[routeId].name;
+  lastResult={...result,id:crypto.randomUUID(),date:Date.now(),vehicle:vehicleId,route:routeKey()};resultVehicle=CONFIG.vehicles[vehicleId].name;resultRoute=routeName(routeKey());
   if(resultModel)resultModel.traverse(m=>{if(m.isMesh)m.geometry.dispose();});
   resultModel=player.clone(true);resultModel.traverse(m=>{if(m.isMesh)m.geometry=m.geometry.clone();});
   events.emit(completed ? 'route:complete' : 'game:over', result);
   const best = Math.max(+store.get('poda-best-score') || 0, result.score);
   store.set('poda-best-score', String(best));
   $('overTitle').textContent = completed ? 'Route complete!' : 'Di poda don jam!';
-  $('overEyebrow').textContent = completed ? CONFIG.routes[routeId].name : 'Jammed near ' + stopName(S.stopIdx);
+  $('overEyebrow').textContent = completed ? routeName(routeKey()) : 'Jammed near ' + stopName(S.stopIdx);
   $('overLine').textContent = `Delivered ${result.passengersDelivered} passenger${result.passengersDelivered === 1 ? '' : 's'} across ${(result.distance / 1000).toFixed(2)} km. ${result.stopsServed} stops served · ${result.stopsMissed} missed.`;
   $('sScore').textContent = result.score.toLocaleString('en-US');
   $('sCash').textContent = fmtLe(result.earnings);
@@ -1668,7 +1709,7 @@ async function loadLeaderboard() {
  const period=$('leaderPeriod').value,now=new Date(),start=new Date(now);start.setHours(0,0,0,0);if(period==='week')start.setDate(start.getDate()-(start.getDay()+6)%7);
  const entries=readScores().filter(r=>period==='all'||r.date>=start.getTime()).sort((a,b)=>b.score-a.score);
  $('leaderEntries').replaceChildren();$('leaderMessage').textContent='This device · '+(entries.length?'Best driving scores':'No saved scores yet.');
- for(const entry of entries){const li=document.createElement('li');li.textContent=`${entry.name} — ${entry.score.toLocaleString('en-US')} · ${CONFIG.routes[entry.route]?.name||'Run'} · ${CONFIG.vehicles[entry.vehicle]?.name||'Poda'}`;$('leaderEntries').append(li);}
+ for(const entry of entries){const li=document.createElement('li');li.textContent=`${entry.name} — ${entry.score.toLocaleString('en-US')} · ${routeName(entry.route)||'Run'} · ${CONFIG.vehicles[entry.vehicle]?.name||'Poda'}`;$('leaderEntries').append(li);}
 }
 
 /* ---------- Autopilot (title-screen attract mode and #demo) ---------- */
@@ -1734,13 +1775,19 @@ function loop(now) {
   musicTick(dt);
   engineTick();
   for(const ch of chunks){
-    ch.visible=ch.position.z > -qualityManager.budget.distance;
+    ch.visible=!cbd && ch.position.z > -qualityManager.budget.distance;
     const nearby=ch.position.z > -qualityManager.budget.shadowDistance;
     for(const mesh of ch.userData.content.children)if(mesh.isMesh)mesh.castShadow=nearby;
   }
   // The title shows the peninsula from above; every other state shows the street.
+  if (cbd) cbd.setVisible(state !== 'garage');
   if (state === 'attract' && aerial) renderTown();
-  else renderer.render(scene, camera);
+  else if (cbd && state !== 'garage') {
+    if (cbdView) { cbd.poseView(camera, cbdView); player.visible = contactShadow.visible = world.visible = false; }
+    else cbd.beforeRender({ camera, sun, player, extras: [contactShadow], coins: { mesh: coinIM, list: coins }, drawDistance: qualityManager.budget.distance });
+    renderer.render(scene, camera);
+    if (!cbdView) cbd.afterRender({ camera, sun });
+  } else renderer.render(scene, camera);
   sampleMetrics(raw);
   if (hud3d && (state === 'play' || demo)) {
     try { hud3d.render(renderer); }
@@ -1754,7 +1801,9 @@ function update(dt) {
   if (auto && !isFinished()) autopilot();
   if (state === 'attract') S.hitAt = -99;
 
+  if (cbd) S.speedCap = cbd.speedCap();
   const { distance: d, gas, dwellFinished } = window.PODA_PlayerSystem.stepPlayer(S, input, dt, state, LANES);
+  if (cbd) cbd.advance(d);
   if (dwellFinished) finishDwell();
 
   // Style multiplier: holding speed between stops pays, loading and knocks reset it.
@@ -1837,7 +1886,7 @@ function update(dt) {
       lane: S.lane, dwelling: S.dwell > 0, recovering: S.reversing,
     }) : null;
     const metres = s ? Math.max(0, Math.round(Math.abs(s.z))) : 0;
-    setHint(STOP_CUES[cue] ? STOP_CUES[cue](metres) : '');
+    setHint(STOP_CUES[cue] ? STOP_CUES[cue](metres) : cbd ? cbd.turnHint() : '');
   }
 
   // spawn
@@ -1851,8 +1900,13 @@ function update(dt) {
   // obstacles
   for (let i = obstacles.length - 1; i >= 0; i--) {
     const o = obstacles[i];
-    window.PODA_TrafficAI.step(o,obstacles,S,dt,LANES);
+    if (o.poolKey === 'sendme') window.PODA_SendMe.step(o, obstacles, S, dt, cbd ? cbd.route.speedCap(cbd.s-o.z) : Infinity);
+    else window.PODA_TrafficAI.step(o,obstacles,S,dt,LANES);
     const despawn = window.PODA_TrafficSystem.stepTraffic(o, d, dt, LANES);
+    if (o.poolKey === 'sendme') {
+      const k = cbd ? cbd.route.path.frameAt(cbd.s-o.z, sendMeFrame).k : 0;
+      animateSendMe(o, o.speed*dt*(1+k*o.x), dt, k);
+    }
     if (o.cross) {
       if (o.body) o.body.position.y = Math.abs(Math.sin(S.time * 10)) * 0.06;
       o.g.rotation.y = heading(o);
@@ -1961,7 +2015,7 @@ function garage() {
    and is disposed the moment a run starts, so it costs nothing while driving. */
 let aerial = null;
 function loadTown() {
-  if (demo || params.has('district') || params.has('garage') || benchmark) return;
+  if (demo || params.has('district') || params.has('garage') || benchmark || cbdView) return;
   aerial = createFreetownAerial(THREE, { canvasTex, fitText });
 }
 function freeTown() {
@@ -1975,6 +2029,7 @@ function renderTown() {
 }
 
 let baseFov = 58;
+const cbdView = CBD_FLAG ? params.get('view') : null;   // ?cbd&view=x,z,yaw,height: fixed comparison camera
 function resize() {
   const w = innerWidth, h = innerHeight;
   renderer.setSize(w, h, false);
@@ -2006,9 +2061,35 @@ fontsReady.catch(() => {}).then(() => {
   registerEasternDistricts(PLUG);
   freight = createFreightFactory(kit, streetAssets);
   lumleyDetails = createLumleyDetails(kit, streetAssets, createBuildingFactory(kit, streetAssets));
-  PLUG.kit = kit; PLUG.debug = { renderer, scene };
+  PLUG.kit = kit; PLUG.debug = { renderer, scene, run: () => ({ S, obstacles, input, state }) };   // read-only hooks for scripts/ tooling
+  if (params.has('stats')) PLUG.debug.spawnSendMe = (lane=0,z=-35) => {
+    if (!window.PODA_SendMe.config.enabled || !Number.isInteger(lane) || lane<0 || lane>2 || z>20 || z< -240 || Math.abs(z)<10 || obstacles.some(o=>Math.abs(o.z-z)<22 && Math.abs(o.x-LANES[lane])<3)) return null;
+    const o=pooled('sendme',makeSendMe); Object.assign(o,{lane,x:LANES[lane],z,speed:LANE_SPEED[lane],cruise:LANE_SPEED[lane],weave:false});
+    o.g.position.set(o.x,0,z); world.add(o.g); obstacles.push(o); return o;
+  };
   initCoins();
   buildStatic();
+  const centralHelp = document.createElement('p');
+  centralHelp.textContent = 'Freetown Central follows mapped streets from Congo Cross through Cotton Tree, PZ and Sani Abacha Street to Eastern Police. Bends turn automatically; steer between lanes and brake for stops. Scores stay on this device.';
+  $('titleHelp').insertBefore(centralHelp, $('titleHelpClose'));
+  // Keep map attribution available in menus without overlaying the road or HUD.
+  for (const menu of [$('titleHelp'), document.querySelector('.pause-options')]) {
+    const credit = document.createElement('p');
+    credit.className = 'cbd-map-credit';
+    credit.append('Map data © ', Object.assign(document.createElement('a'), {
+      href: 'https://www.openstreetmap.org/copyright',
+      textContent: 'OpenStreetMap contributors (ODbL)',
+    }));
+    menu.insertBefore(credit, menu === $('titleHelp') ? $('titleHelpClose') : null);
+  }
+  if (routeId === 'central') {
+    centralMode = cbd = createCbdMode({ THREE, kit, scene, world, bake, textures: { road: roadTex, roadDetail: roadDetailTex, walk: walkTex } });
+    scene.getObjectByName('street-static').visible = false;
+    DATA.route = routeStops();
+    PLUG.debug.cbd = cbd;
+    selectionDetails();
+    updateTitleRoute();
+  }
   if (params.has('garage')) return garage();
   for (const [id, label] of LIVERIES) $('garageLivery').add(new Option(label, id));
   for (const slogan of DATA.slogans) $('garageSlogan').add(new Option(slogan, slogan));
@@ -2038,6 +2119,15 @@ fontsReady.catch(() => {}).then(() => {
   }
   loadTown();
   if (demo && !benchmark) startRun();
+  // Development showcase: load `?sendme` to place one rider in live traffic
+  // immediately. Normal gameplay keeps the configured probabilistic spawn.
+  if (params.has('sendme') && !benchmark) {
+    startRun();
+    setTimeout(() => {
+      const rider = PLUG.debug.spawnSendMe?.(0, -24);
+      if (rider) rider.g.userData.showcase = true;
+    }, 350);
+  }
   // The actual player vehicle is the title showcase; no separate town scene is allocated.
   if (benchmark) setupBenchmark();
   requestAnimationFrame(t => { clock.reset(); loop(t); });

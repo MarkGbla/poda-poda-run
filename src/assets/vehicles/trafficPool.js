@@ -4,7 +4,9 @@ export class TrafficPool {
   constructor(bake, maximumPerKind=5) { this.bake=bake;this.maximum=maximumPerKind;this.free=new Map();this.created=0; }
   acquire(key,factory) {
     const bin=this.free.get(key);let visual=bin?.pop();
-    if(!visual){const o=factory();this.bake(o.g,true);visual={g:o.g,wid:o.wid,len:o.len,flat:o.flat,weave:o.weave};this.created++;}
+    if(!visual){const o=factory();if(!o.g.userData.sendme)this.bake(o.g,true);visual={g:o.g,wid:o.wid,len:o.len,flat:o.flat,weave:o.weave};this.created++;}
+    if(visual.g.userData.sendme) for(const name of ['lean','frontFork','frontWheel','rearWheel']) visual.g.getObjectByName(name).rotation.set(0,0,0);
+    if(visual.g.userData.sendme) visual.g.getObjectByName('brakeLight').scale.y=.07;
     visual.g.visible=true;visual.g.rotation.set(0,0,0);visual.g.scale.set(1,1,1);
     return {...visual,poolKey:key};
   }

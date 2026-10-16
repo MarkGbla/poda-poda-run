@@ -12,6 +12,7 @@
  *   npm run smoke -- --url=http://…    drive a server that is already running
  *   npm run smoke -- --shots=out/      also save screenshots to a directory
  *   npm run smoke -- --offline-cdn     fail if the page requests a CDN host
+ *   npm run smoke -- --cbd-only        run the CBD desktop and touch checks
  *
  * Exits non-zero on any page error, failed assertion, or missing element.
  */
@@ -168,6 +169,7 @@ async function main() {
 
   try {
     /* --- title --- */
+    if (!args['cbd-only']) {
     await page.goto(url + '?stats', { waitUntil: 'load' });
     await page.waitForSelector('#startBtn', { timeout: 20000 });
     await page.waitForTimeout(5000);               // give WebGL + fonts time to settle
@@ -303,6 +305,90 @@ async function main() {
       await page.waitForTimeout(6000);
       check(`${label} boots`, errors.length === before,
         errors.slice(before).join('; ') || suffix);
+    }
+
+    }
+    /* --- Freetown Central: the former ?cbd link opens the unified mapped route --- */
+    {
+      const before = errors.length;
+      await page.goto(url + '?cbd&stats', { waitUntil: 'load' });
+      await page.waitForSelector('#startBtn', { timeout: 20000 });
+      await page.waitForTimeout(4000);
+      check('Central title identifies the unified route', (await page.textContent('#titleRouteName')).trim() === 'Freetown Central');
+      check('CBD map credit is off the game view', await page.locator('body > .cbd-map-credit').count() === 0);
+      check('CBD map credit is available in menus', await page.locator('#titleHelp .cbd-map-credit a').getAttribute('href') === 'https://www.openstreetmap.org/copyright' && await page.locator('.pause-options .cbd-map-credit a').count() === 1);
+      check('Central keeps route navigation available', await page.isVisible('#titleRouteNext') && await page.isVisible('#titleRoutePrev'));
+      await safeClick('#garageTitle', 'CBD garage opens');
+      await page.waitForFunction(() => !window.PODA.debug.cbd.group.visible);
+      check('CBD scenery is hidden in garage', await page.evaluate(() => !window.PODA.debug.cbd.group.visible));
+      check('Central garage shows the mapped route', !(await page.locator('#routeSelect').isDisabled()) && await page.inputValue('#routeSelect') === 'central');
+      check('Central garage explains driving and score storage', /Congo Cross.*Eastern Police.*Bends turn automatically.*this device/.test(await page.textContent('#routeDescription')));
+      check('Central garage lists stops in driving order', await page.locator('.central-stop-details li').allTextContents().then(a => a[0] === 'Congo Cross' && a.at(-1) === 'Eastern Police' && a.indexOf('Cotton Tree') < a.indexOf('PZ Junction')));
+      await page.selectOption('#routeSelect', 'western');
+      check('switching away restores the arcade road', await page.evaluate(() => !window.PODA.debug.cbd && window.PODA.debug.scene.getObjectByName('street-static').visible));
+      await page.selectOption('#routeSelect', 'central');
+      check('switching back restores mapped streets', await page.evaluate(() => !!window.PODA.debug.cbd && !window.PODA.debug.scene.getObjectByName('street-static').visible));
+      await shot('09-cbd-garage.png');
+      await safeClick('#garageClose', 'CBD garage closes');
+      check('Central selection persists as one route', await page.evaluate(() => localStorage.getItem('poda-route')) === 'central');
+      await safeClick('#startBtn', 'start a CBD shift');
+      await page.waitForFunction(() => window.PODA.debug.cbd.group.visible);
+      await page.focus('#c');
+      await page.keyboard.down('ArrowUp');
+      await page.waitForTimeout(7000);
+      await page.keyboard.up('ArrowUp');
+      const cbd = await page.evaluate(() => {
+        const c = window.PODA?.debug?.cbd;
+        return c && { s: c.s, start: c.route.startS, street: c.street(), stops: c.stopNames, metrics: window.PODA.debug.metrics };
+      });
+      check('Central mapped route boots', !!cbd);
+      if (cbd) {
+        check('Central vehicle advances along the mapped road', cbd.s - cbd.start > 40, `${(cbd.s - cbd.start).toFixed(0)} m on ${cbd.street}`);
+        check('Central route combines west, downtown and east stops', cbd.stops[0] === 'Congo Cross' && cbd.stops.at(-1) === 'Eastern Police' && cbd.stops.includes('City Hall') && cbd.stops.includes('Big Market') && cbd.stops.includes('PZ Junction'));
+        check('CBD next stop shown', cbd.stops.includes((await page.textContent('#stopName')).trim()));
+        notes.push(`  ---- cbd: ${cbd.metrics.calls} draws · ${cbd.metrics.triangles.toLocaleString('en-US')} triangles · ` +
+          `${cbd.metrics.geometries} geometries · ${cbd.metrics.textures} textures · ${cbd.metrics.fps} fps`);
+      }
+      await shot('09-cbd.png');
+      await safeClick('#pauseBtn', 'CBD pauses');
+      await page.locator('.pause-options summary').click();
+      await safeClick('#restartBtn', 'CBD restarts');
+      check('CBD restart resets route progress', await page.evaluate(() => Math.abs(window.PODA.debug.cbd.s - window.PODA.debug.cbd.route.startS) < 1));
+      check('CBD view raises no errors', errors.length === before, errors.slice(before).join('; '));
+    }
+
+    /* Phone viewport + real browser touch events; not a phone GPU benchmark. */
+    {
+      const mobile = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2, reducedMotion: 'reduce' });
+      mobile.on('pageerror', e => errors.push(`mobile: ${e.message}`));
+      await mobile.goto(url + '?cbd', { waitUntil: 'load' });
+      await mobile.waitForFunction(() => !!window.PODA?.debug?.cbd);
+      check('mobile title fits viewport', await mobile.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+      check('mobile CBD route name is not clipped', await mobile.locator('#titleRouteName').evaluate(el => el.scrollWidth <= el.clientWidth));
+      await mobile.locator('#titleHow').tap();
+      check('CBD help explains automatic bends', /Bends turn automatically/.test(await mobile.textContent('#titleHelp')));
+      await mobile.locator('#titleHelpClose').tap();
+      if (SHOTS) await mobile.screenshot({ path: join(SHOTS, '10-cbd-mobile-title.png') });
+      await mobile.locator('#startBtn').tap();
+      const cdp = await mobile.context().newCDPSession(mobile);
+      const gas = await mobile.locator('#gasBtn').boundingBox();
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: gas.x + gas.width / 2, y: gas.y + gas.height / 2 }] });
+      check('mobile gas engages', await mobile.evaluate(() => window.PODA.debug.run().input.gas));
+      await mobile.waitForTimeout(2000);
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+      check('mobile gas releases', await mobile.evaluate(() => !window.PODA.debug.run().input.gas));
+      const lane = await mobile.evaluate(() => window.PODA.debug.run().S.lane);
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 260, y: 430 }] });
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 120, y: 430 }] });
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+      check('mobile swipe changes lane', await mobile.evaluate(() => window.PODA.debug.run().S.lane) === Math.max(0, lane - 1));
+      if (SHOTS) await mobile.screenshot({ path: join(SHOTS, '11-cbd-mobile-play.png') });
+      await mobile.locator('#pauseBtn').tap();
+      check('mobile pause is reachable', await mobile.isVisible('#pause'));
+      await mobile.locator('#homePause').tap();
+      await mobile.locator('#leaveConfirm').tap();
+      check('mobile Home returns to title', await mobile.isVisible('#title'));
+      await mobile.close();
     }
 
     /* --- motorcycle starts ready to collect its single passenger --- */
