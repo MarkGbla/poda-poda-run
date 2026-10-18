@@ -1772,7 +1772,7 @@ async function previewPoster() {
  try {
    const poster=await preparePoster();$('scorePreviewImage').src=poster.url;
    $('scorePreviewImage').alt=`${scorecardName()} — ${poster.score.toLocaleString('en-US')} points in Poda-Poda Run`;
-   $('previewStatus').textContent='2508 × 2508 PNG · Ready to share or save';
+   $('previewStatus').textContent='';
    scorePreview.open();$('shareStatus').textContent='';
  } catch(error) { $('shareStatus').textContent='Could not create the scorecard. Please try again.';console.error(error); }
  finally {posterBusy=false;}
