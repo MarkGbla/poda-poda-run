@@ -1,80 +1,87 @@
-const test = require('node:test');
-const assert = require('node:assert/strict');
-
-function memoryDB() {
-  const sessions = new Map();
-  const runs = new Map();
-  return {
-    prepare(sql) {
-      return {
-        bind(...values) {
-          return {
-            async run() {
-              if (sql.startsWith('INSERT INTO run_sessions')) {
-                const [runId, playerId, tokenHash, startedAt] = values;
-                sessions.set(runId, { player_id: playerId, token_hash: tokenHash, started_at_ms: startedAt, finished_at_ms: null });
-                return { meta: { changes: 1 } };
-              }
-              if (sql.includes('INSERT OR IGNORE INTO runs')) {
-                if (runs.has(values[0])) return { meta: { changes: 0 } };
-                runs.set(values[0], { run_id: values[0], player_id: values[1], player_name: values[2], score: values[3],
-                  earnings: values[4], coins: values[5], passengers: values[6], distance: values[7],
-                  stops: values[8], perfect_stops: values[9], missed_stops: values[10], collisions: values[11],
-                  completed: values[12], duration_ms: values[13], game_version: values[14], created_at_ms: values[15] });
-                return { meta: { changes: 1 } };
-              }
-              if (sql.startsWith('UPDATE run_sessions')) {
-                sessions.get(values[1]).finished_at_ms = values[0];
-                return { meta: { changes: 1 } };
-              }
-              throw new Error(`Unexpected SQL: ${sql}`);
-            },
-            async first() {
-              if (sql.startsWith('SELECT player_id')) return sessions.get(values[0]) || null;
-              if (sql.startsWith('SELECT COUNT(*)')) return { rank: [...runs.values()].filter(run => run.score > values[0]).length + 1 };
-              if (sql.includes('WHERE player_id = ?')) return [...runs.values()].filter(run => run.player_id === values[0]).sort((a, b) => b.score - a.score)[0] || null;
-              throw new Error(`Unexpected SQL: ${sql}`);
-            },
-            async all() {
-              if (!sql.includes('FROM runs WHERE created_at_ms')) throw new Error(`Unexpected SQL: ${sql}`);
-              return { results: [...runs.values()].filter(run => run.created_at_ms >= values[0]).sort((a, b) => b.score - a.score) };
-            },
-          };
-        },
-      };
-    },
-  };
+const test=require('node:test');
+const assert=require('node:assert/strict');
+const {database,seed,request,summary}=require('./helpers/account-db.cjs');
+const VERSION=require('../src/simulation/RunRules.js').GAME_VERSION;
+async function setup() {
+  const worker=(await import('../server/worker.mjs')).default, DB=database(), player=await seed(DB);
+  const env={DB,PUBLIC_ORIGIN:'https://podapodarun.com'};
+  const call=(path,body,user=player,headers)=>worker.fetch(request(path,user,body,headers),env);
+  async function start(route='western',vehicle='poda') {
+    const response=await call('/api/runs/start',{requestId:crypto.randomUUID(),route,vehicle,gameVersion:VERSION});
+    const result=await response.json(); assert.equal(response.status,200,JSON.stringify(result));
+    DB.sql.prepare('UPDATE account_run_sessions SET started_at=started_at-60000 WHERE run_id=?').run(result.runId);
+    return result;
+  }
+  return {worker,DB,player,env,call,start};
 }
-
-test('worker accepts one completed run and lists its official score', async () => {
-  const worker = (await import('../server/worker.mjs')).default;
-  const env = { DB: memoryDB() };
-  const playerId = crypto.randomUUID();
-  const post = (path, body) => worker.fetch(new Request(`https://example.test${path}`, {
-    method: 'POST', body: JSON.stringify(body),
-  }), env);
-  const start = await post('/api/runs/start', { playerId });
-  assert.equal(start.status, 200);
-  const session = await start.json();
-  const summary = {
-    completed: true, distance: 4800, earnings: 57, coins: 9,
-    passengersDelivered: 7, passengersOnboard: 0, passengersLost: 1,
-    stopsServed: 10, stopsMissed: 2, perfectStops: 3, collisions: 1,
-  };
-  const payload = { ...session, summary, durationMs: 300000 };
-  // The server checks a run's elapsed wall time, so backdate the in-memory session.
-  const storedSession = await env.DB.prepare('SELECT player_id, token_hash, started_at_ms, finished_at_ms FROM run_sessions WHERE run_id = ?')
-    .bind(session.runId).first();
-  storedSession.started_at_ms -= 300000;
-  const finish = await post('/api/runs/finish', payload);
-  assert.equal(finish.status, 200);
-  const accepted = await finish.json();
-  assert.equal(accepted.score, 1570);
-  assert.equal(accepted.rank, 1);
-  assert.equal((await post('/api/runs/finish', payload)).status, 403);
-  const board = await worker.fetch(new Request('https://example.test/api/leaderboard?period=all'), env);
-  assert.equal(board.status, 200);
-  assert.equal((await board.json()).entries[0].score, 1570);
-  const best = await worker.fetch(new Request(`https://example.test/api/player/${playerId}/best`), env);
-  assert.equal((await best.json()).best.score, 1570);
+test('accepted run credits once across concurrent retries and returns stable receipt',async()=>{
+  const {DB,call,start}=await setup(), run=await start();
+  const body={runId:run.runId,gameVersion:VERSION,summary:summary(),durationMs:60000};
+  const responses=await Promise.all([call('/api/runs/finish',body),call('/api/runs/finish',body)]);
+  assert.deepEqual(responses.map(r=>r.status),[200,200]);
+  assert.deepEqual(await responses[0].json(),await responses[1].json());
+  assert.equal(DB.sql.prepare('SELECT COUNT(*) n FROM accepted_runs').get().n,1);
+  assert.equal(DB.sql.prepare('SELECT lifetime_earnings FROM player_stats').get().lifetime_earnings,11);
+  assert.equal(DB.sql.prepare('SELECT COUNT(*) n FROM period_bests').get().n,2);
+  assert.equal((await call('/api/runs/finish',{...body,summary:summary({coins:3})})).status,409);
+});
+test('failure in stats batch rolls back run, session and all rewards; retry succeeds',async()=>{
+  const {DB,call,start}=await setup(), run=await start();
+  const body={runId:run.runId,gameVersion:VERSION,summary:summary(),durationMs:60000};
+  DB.failAt=2; assert.equal((await call('/api/runs/finish',body)).status,503);
+  assert.equal(DB.sql.prepare('SELECT COUNT(*) n FROM accepted_runs').get().n,0);
+  assert.equal(DB.sql.prepare('SELECT finished_at FROM account_run_sessions').get().finished_at,null);
+  DB.failAt=-1; assert.equal((await call('/api/runs/finish',body)).status,200);
+});
+test('ownership, expiry, unsupported modes, CSRF, expired sessions and logout are enforced',async()=>{
+  const {DB,call,start,player}=await setup(), other=await seed(DB,'OtherDriver'), run=await start();
+  const body={runId:run.runId,gameVersion:VERSION,summary:summary(),durationMs:60000};
+  assert.equal((await call('/api/runs/finish',body,other)).status,403);
+  assert.equal((await call('/api/runs/finish',body,null)).status,401);
+  assert.equal((await call('/api/runs/finish',body,player,{origin:'https://evil.test'})).status,403);
+  assert.equal((await call('/api/runs/start',{route:'central',vehicle:'poda',requestId:crypto.randomUUID(),gameVersion:VERSION})).status,400);
+  DB.sql.prepare('UPDATE account_run_sessions SET expires_at=0').run();
+  assert.equal((await call('/api/runs/finish',body)).status,410);
+  assert.equal((await call('/api/auth/logout',{})).status,200);
+  assert.equal((await call('/api/me')).status,200);
+  assert.equal((await (await call('/api/me')).json()).player,null);
+  DB.sql.prepare('UPDATE app_sessions SET expires_at=0').run();
+  assert.equal((await (await call('/api/me',undefined,other)).json()).player,null);
+});
+test('one row per player, earliest-achievement ties, own rank and lifetime fares',async()=>{
+  const {DB,call,start,player}=await setup();
+  for (const [distance,earnings,perfect] of [[300,11,1],[500,6,0]]) {
+    const run=await start();
+    assert.equal((await call('/api/runs/finish',{runId:run.runId,gameVersion:VERSION,summary:summary({distance,earnings,perfectStops:perfect}),durationMs:60000})).status,200);
+  }
+  let board=await (await call('/api/leaderboard?period=all')).json();
+  assert.equal(board.entries.length,1); assert.equal(board.me.rank,1); assert.equal(board.me.value,185);
+  board=await (await call('/api/leaderboard?period=earners')).json(); assert.equal(board.me.value,17);
+  const first=DB.sql.prepare('SELECT best_at FROM player_stats WHERE player_id=?').get(player.id).best_at;
+  // 55 earlier tied players push the current player beyond the visible top 50.
+  for(let i=0;i<55;i++) {
+    const p=await seed(DB,'Driver'+i);
+    DB.sql.prepare('INSERT INTO player_stats(player_id,best_score,best_at,earnings_at,total_runs) VALUES (?,?,?,?,?)').run(p.id,185,first-1,first-1,1);
+  }
+  board=await (await call('/api/leaderboard?period=all')).json();
+  assert.equal(board.entries.length,50); assert.equal(board.me.rank,56);
+  const guest=await (await call('/api/leaderboard?period=all',undefined,null)).json();
+  assert.equal(guest.me,null); assert.ok(!JSON.stringify(guest).includes('google_sub'));
+});
+test('name uniqueness/cooldown and optimistic progress keep stale devices from overwriting',async()=>{
+  const {call,DB}=await setup(); await seed(DB,'KingPoda');
+  assert.equal((await call('/api/me/name',{name:'kingpoda'})).status,409);
+  assert.equal((await call('/api/me/name',{name:'NewDriver'})).status,200);
+  assert.equal((await call('/api/me/name',{name:'AgainDriver'})).status,409);
+  assert.equal((await call('/api/me/name',{name:'<script>'})).status,400);
+  assert.equal((await call('/api/me/progress',{version:0,preferences:{'poda-paint':'green'}})).status,200);
+  assert.equal((await call('/api/me/progress',{version:0,preferences:{'poda-paint':'blue'}})).status,409);
+  assert.equal((await call('/api/me/progress',{version:1,preferences:{'poda-best-score':'999999'}})).status,400);
+  assert.equal((await (await call('/api/me')).json()).progress.preferences['poda-paint'],'green');
+});
+test('UTC day and Monday boundaries are independent of local timezone',async()=>{
+  const {startOfPeriod}=await import('../server/services/Leaderboard.mjs');
+  assert.equal(startOfPeriod('today',Date.parse('2026-10-18T23:59:59Z')),Date.parse('2026-10-18T00:00:00Z'));
+  assert.equal(startOfPeriod('week',Date.parse('2026-10-18T23:59:59Z')),Date.parse('2026-10-12T00:00:00Z'));
+  assert.equal(startOfPeriod('week',Date.parse('2026-10-19T00:00:00Z')),Date.parse('2026-10-19T00:00:00Z'));
 });

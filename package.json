@@ -14,7 +14,9 @@
     "cbd:views": "node scripts/cbd/capture-views.mjs",
     "cbd:drive": "node scripts/cbd/drive-cbd.mjs",
     "central:fetch": "node scripts/central/fetch-osm.mjs",
-    "central:build": "python3 scripts/central/build-central.py"
+    "central:build": "python3 scripts/central/build-central.py",
+    "dev:cloud": "wrangler dev --local --config wrangler.local.jsonc",
+    "db:local": "wrangler d1 migrations apply DB --local --config wrangler.local.jsonc"
   },
   "devDependencies": {
     "playwright-core": "^1.64.0",
@@ -25,6 +27,8 @@
     "sharp": "^0.35.5"
   },
   "dependencies": {
+    "jose": "^6.2.12",
+    "oauth4webapi": "^3.8.8",
     "three": "0.128.0"
   }
 }

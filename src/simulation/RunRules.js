@@ -13,6 +13,9 @@
     'Abacha Street', 'Eastern Police', 'FBC',
   ]);
   const CAPACITY = 14;
+  const GAME_VERSION = 'accounts-1';
+  const FARE = 6;
+  const PERFECT_FARE = 5;
 
   function stopName(index) {
     return ROUTE[index] || null;
@@ -134,7 +137,7 @@
     });
   }
 
-  return Object.freeze({ ROUTE, CAPACITY, CONDITION, RECOVER_LIMIT, REVERSE_SPEED,
+  return Object.freeze({ GAME_VERSION, FARE, PERFECT_FARE, ROUTE, CAPACITY, CONDITION, RECOVER_LIMIT, REVERSE_SPEED,
     MAX_MULTIPLIER, stopName, isFinalStop,
     nextStopIndex, passengersDue, stopGrade, canServeStop,
     canRecoverStop, stopMissed, stopGuidance,

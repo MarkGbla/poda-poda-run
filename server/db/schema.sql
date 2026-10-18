@@ -1,3 +1,5 @@
+-- Historical anonymous schema only. Apply every numbered migration in
+-- server/db/migrations for the current account schema; do not provision from this file.
 CREATE TABLE IF NOT EXISTS run_sessions (
   run_id TEXT PRIMARY KEY,
   player_id TEXT NOT NULL,

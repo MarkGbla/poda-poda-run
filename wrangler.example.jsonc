@@ -16,6 +16,7 @@
       "migrations_dir": "server/db/migrations"
     }
   ],
+  "vars": { "PUBLIC_ORIGIN": "https://podapodarun.com", "ACCOUNTS_ENABLED": "true" },
   "ratelimits": [
     {
       "name": "RUN_RATE_LIMITER",

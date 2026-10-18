@@ -1,0 +1,4 @@
+# Copy to .dev.vars for wrangler.local.jsonc (ignored by Git).
+# Register http://localhost:8787/api/auth/google/callback on a development web OAuth client.
+GOOGLE_CLIENT_ID=""
+GOOGLE_CLIENT_SECRET=""

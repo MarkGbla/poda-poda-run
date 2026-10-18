@@ -2,8 +2,12 @@ import '../base-ui.css';
 import '../drive-ui.css';
 import '../start-ui.css';
 import '../run-ui.css';
+import '../account-ui.css';
+import { createAccountUI } from './ui/AccountUI.js';
+import { modal } from './ui/Modal.js';
 import './simulation/systems/RoadContactSystem.js';
 import { registerEasternDistricts } from './data/EasternDistricts.js';
+import { createGuestProfile, normalizeNickname } from './services/GuestProfile.mjs';
 import { createScorePoster } from './ui/ScorePoster.js';
 import './simulation/systems/TrafficAI.js';
 import './simulation/systems/SendMeController.js';
@@ -50,7 +54,7 @@ const gameURL = 'https://podapodarun.com/';
 const DATA = {
   // Lumley → Waterloo, the east–west corridor the official fare tables use
   route: window.PODA_RUN_RULES.ROUTE,
-  fare: 6,                        // new Leones per hop (2026 fare table: Lumley–Regent Rd NLe 6.1)
+  fare: window.PODA_RUN_RULES.FARE,                        // new Leones per hop (2026 fare table: Lumley–Regent Rd NLe 6.1)
   // real slogans seen painted on Freetown poda-podas
   slogans: ['GOD IS GREAT', 'DONE DEM ALL', 'NEVER DISCOURAGE', 'RESPECT THY NEIGHBOUR', 'FEAR JUDGMENT DAY', 'GOD WILL PROVIDE', "GOD'S GIFT", 'TRUST IN ALLAH', 'GOD SAVE THE TRAVELERS', 'DE GUNNERS'],
   // transport-company names painted along poda-poda sides
@@ -90,7 +94,11 @@ let centralMode = null;
 const store = {
   get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
   set(k, v) { try { localStorage.setItem(k, v); return true; } catch (e) { return false; } },
+  remove(k) { try { localStorage.removeItem(k); } catch {} },
+  keys() { try { return Object.keys(localStorage); } catch { return []; } },
 };
+
+const guestProfile = createGuestProfile(store);
 
 /* ================================================================
    Three.js setup
@@ -846,7 +854,8 @@ const clock = new window.PODA_GameClock();
 const events = new window.PODA_EventBus();
 const missions = new window.PODA_MissionSystem(events, store);
 const api = new window.PODA_ApiClient(store, fetch.bind(window), () => crypto.randomUUID());
-let runSerial = 0, lastResult=null, resultVehicle=null, resultRoute=null, resultModel=null;
+let onlineRun = null, accountUI = null;
+let runSerial = 0, lastResult=null, verifiedScoreRank=null;
 let garageReturnState = 'attract';
 let garageHidden = [];
 let state = stateMachine.current, demo = location.hash === '#demo' || new URLSearchParams(location.search).has('district');
@@ -935,7 +944,7 @@ function beginDwell() {
 }
 function finishDwell() {
   const { dropN, board, perfect } = S.dwellPlan;
-  const earned = dropN * DATA.fare + (perfect ? 5 : 0);
+  const earned = dropN * DATA.fare + (perfect ? RULES.PERFECT_FARE : 0);
   S.cash += earned; S.dropped += dropN; S.stops++;
   if (perfect) S.perfectStops++;
   events.emit('stop:served', { stop: stopName(S.stopIdx), grade: perfect ? 'perfect' : 'served', passengersDropped: dropN, passengersBoarded: board, earned });
@@ -1215,7 +1224,8 @@ $('garageLivery').addEventListener('change', e => {
 $('garageSlogan').addEventListener('change', e => {
   selectedSlogan = e.target.value; store.set('poda-slogan', selectedSlogan); buildPlayer(); poseGarageCamera();
 });
-$('leaderClose').addEventListener('click', () => { $('leaderboard').hidden = true; });
+const leaderModal = modal($('leaderboard'));
+$('leaderClose').addEventListener('click', () => leaderModal.close());
 $('leaderPeriod').addEventListener('change', loadLeaderboard);
 $('mute').addEventListener('click', toggleMute);
 addEventListener('visibilitychange', () => { if (document.hidden && state === 'play') pauseRun(); });
@@ -1531,7 +1541,8 @@ function startRun() {
   updateHud();
   canvas.focus?.();
   events.emit('game:start', { route: DATA.route });
-  // New vehicle/route scores are local until the online validator supports this ruleset.
+  onlineRun = api.start({ route: routeKey(), vehicle: vehicleId, gameVersion: RULES.GAME_VERSION,
+    practice: demo || benchmark || params.has('sendme') || !!forcedDistrict });
 }
 function pauseRun() {
   if (state !== 'play') return;
@@ -1570,9 +1581,8 @@ function endRun(completed = false) {
   $('shareStatus').textContent = '';
   $('over').classList.toggle('run-complete', completed);
   const result = RULES.summarize(S);
-  lastResult={...result,id:crypto.randomUUID(),date:Date.now(),vehicle:vehicleId,route:routeKey()};resultVehicle=CONFIG.vehicles[vehicleId].name;resultRoute=routeName(routeKey());
-  if(resultModel)resultModel.traverse(m=>{if(m.isMesh)m.geometry.dispose();});
-  resultModel=player.clone(true);resultModel.traverse(m=>{if(m.isMesh)m.geometry=m.geometry.clone();});
+  verifiedScoreRank=null;
+  lastResult={...result,durationMs:Math.round(S.time*1000),id:crypto.randomUUID(),date:Date.now(),vehicle:vehicleId,route:routeKey()};
   events.emit(completed ? 'route:complete' : 'game:over', result);
   const best = Math.max(+store.get('poda-best-score') || 0, result.score);
   store.set('poda-best-score', String(best));
@@ -1587,11 +1597,34 @@ function endRun(completed = false) {
   $('sStops').textContent = result.stopsServed;
   $('sMissed').textContent = result.stopsMissed;
   $('sPerfect').textContent = result.perfectStops;
-  $('scoreBreakdown').textContent = `Score: ${result.passengersDelivered} delivered × 100 + ${result.stopsServed} stops × 30 + ${result.perfectStops} perfect × 40 + ${Math.floor(result.distance / 20)} distance${completed ? ' + 300 finish' : ''} − ${result.stopsMissed} missed × 25 − ${result.collisions} collisions × 40 (minimum 0).`;
+  $('scoreBreakdown').textContent = `Score: ${result.passengersDelivered} delivered × 100 + ${result.stopsServed} stops × 30 + ${result.perfectStops} perfect × 40 + ${Math.floor(result.distance / 20)} distance + ${result.style} style${completed ? ' + 300 finish' : ''} − ${result.stopsMissed} missed × 25 − ${result.collisions} collisions × 40 (minimum 0).`;
   $('missionSummary').textContent = 'Route goals: ' + missions.status().map(mission => `${mission.label} ${mission.progress}/${mission.target}`).join(' · ');
+  nameIdentity=undefined;
+  syncResultName();
   const saved = saveLocalScore();
   $('onlineStatus').textContent = saved ? 'Saved on this device. You can change your name and save again.' : 'You can download a picture of this run even when browser storage is unavailable.';
   const finishedSerial = runSerial;
+  const finishedHandle = onlineRun;
+  $('cloudRunStatus').textContent = finishedHandle ? 'Saving to your driver account…' : 'Saved on this device. Sign in before a run to join global rankings.';
+  if (api.account?.player && !finishedHandle) $('cloudRunStatus').textContent = 'This run stays on this device. Central and practice runs do not enter global rankings.';
+  accountUI?.render();
+  api.finish(finishedHandle, result, Math.round(S.time * 1000)).then(async receipt => {
+    if (receipt.status === 'accepted') await accountUI?.refresh();
+    if (runSerial !== finishedSerial) return;
+    const messages = { accepted: 'Saved to your account · Le ' + (receipt.earnings || 0) + ' in lifetime fares.',
+      pending: 'Saved on this device. Cloud save is pending; reconnect or open your profile to retry.',
+      rejected: 'Saved on this device only. ' + (receipt.message || ''),
+      local: 'Saved on this device only. Play signed in and online on an eligible route to join global rankings.' };
+    $('cloudRunStatus').textContent = messages[receipt.status];
+    if (receipt.status === 'accepted') {
+      const [allTime, today] = await Promise.allSettled([api.leaderboard('all'), api.leaderboard('today')]);
+      if (runSerial !== finishedSerial) return;
+      if (allTime.status === 'fulfilled' && allTime.value.me) $('cloudRunStatus').textContent += ` All-time position: #${allTime.value.me.rank}.`;
+      const daily = today.status === 'fulfilled' ? today.value.me : null;
+      // A leaderboard position is shown on this card only when the verified daily best matches this run.
+      if (daily?.value === result.score && Number.isInteger(daily.rank) && daily.rank > 0) verifiedScoreRank=daily.rank;
+    }
+  }).catch(() => { if (runSerial === finishedSerial) $('cloudRunStatus').textContent = 'Cloud save unavailable. Your device result is kept.'; });
   $('bestOver').textContent = 'Best score: ' + best.toLocaleString('en-US');
   setHint('');
   setTimeout(() => {
@@ -1682,35 +1715,114 @@ function closePlayerGarage() {
   if (state === 'attract') $('title').hidden = false;
   else $('over').hidden = false;
 }
-function showLeaderboard() { $('leaderboard').hidden = false; loadLeaderboard(); }
+function showLeaderboard() { leaderModal.open(); loadLeaderboard(); }
 function readScores(){try{const rows=JSON.parse(store.get('poda-scores-v2')||'[]');return Array.isArray(rows)?rows.filter(r=>Number.isFinite(r.score)&&Number.isFinite(r.date)):[];}catch{return [];}}
 function saveLocalScore(){
  if(!lastResult)return;
- const name=$('driverName').value.trim().slice(0,24)||'Salone driver';store.set('poda-driver-name',name);
- const rows=readScores().filter(r=>r.id!==lastResult.id);rows.push({...lastResult,name});rows.sort((a,b)=>b.score-a.score);const saved=store.set('poda-scores-v2',JSON.stringify(rows.slice(0,100)));
- $('shareStatus').textContent=saved?'Score saved on this device.':'Browser storage is unavailable. You can still download your poster.';
- return saved;
+ const name=guestProfile.name(api.account?.player);
+ const rows=readScores().filter(r=>r.id!==lastResult.id);rows.push({...lastResult,name});rows.sort((a,b)=>b.score-a.score);
+ return store.set('poda-scores-v2',JSON.stringify(rows.slice(0,100)));
 }
-$('driverName').value=store.get('poda-driver-name')||'';
-$('saveScore').addEventListener('click',saveLocalScore);
+let nameIdentity;
+function syncResultName() {
+ const player=api.account?.player;
+ const identity=player ? `${player.id}:${player.driver_name}` : 'guest';
+ if(identity!==nameIdentity) {
+   $('driverName').value=player ? guestProfile.name(player) : guestProfile.profile.displayName;
+   nameIdentity=identity;
+ }
+ $('guestNameForm').hidden=!!player;
+ $('editAccountName').hidden=!player;
+ $('nicknameHint').textContent=player ? `Scorecard name: ${guestProfile.name(player)}` : 'No account needed. Leave blank to use Guest Driver.';
+}
+function saveNickname(explicit=false) {
+ if(api.account?.player)return true;
+ const name=normalizeNickname($('driverName').value);
+ if(!name && !explicit)return true;
+ try {
+   const persisted=guestProfile.save(name);$('driverName').value=name;
+   $('nicknameStatus').textContent=persisted?'Nickname saved. You can edit it anytime.':'Nickname saved for this session. Browser storage is unavailable.';
+   saveLocalScore();return true;
+ } catch(error) { $('nicknameStatus').textContent=error.message;$('driverName').focus();return false; }
+}
+function scorecardName() {
+ return api.account?.player ? guestProfile.name(api.account.player) : normalizeNickname($('driverName').value)||'Guest Driver';
+}
+syncResultName();
+$('driverName').addEventListener('input',()=>{ $('driverName').value=normalizeNicknameInput($('driverName').value);$('nicknameStatus').textContent=''; });
+// Preserve spaces while typing; trim only on save/export.
+function normalizeNicknameInput(value) { return Array.from(value).slice(0,24).join(''); }
+$('guestNameForm').addEventListener('submit',event=>{event.preventDefault();saveNickname(true);});
+$('editAccountName').addEventListener('click',()=>accountUI?.open());
 $('copyLink').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(gameURL);$('shareStatus').textContent='Game link copied.';}catch{$('shareStatus').textContent=gameURL;}});
-$('shareScore').addEventListener('click',()=>exportPoster(true));
+const scorePreview=modal($('scorePreview'));
+let posterCache=null, posterBusy=false;
+async function preparePoster() {
+ saveNickname();
+ const name=scorecardName(), rank=verifiedScoreRank, key=JSON.stringify([lastResult.id,name,rank]);
+ if(posterCache?.key===key)return posterCache;
+ const blob=await createScorePoster({name,score:lastResult.score,rank});
+ if(posterCache)URL.revokeObjectURL(posterCache.url);
+ posterCache={key,blob,url:URL.createObjectURL(blob),score:lastResult.score};
+ return posterCache;
+}
+async function previewPoster() {
+ if(!lastResult||posterBusy)return;
+ posterBusy=true;$('shareStatus').textContent='Creating your 4K scorecard…';
+ try {
+   const poster=await preparePoster();$('scorePreviewImage').src=poster.url;
+   $('scorePreviewImage').alt=`${scorecardName()} — ${poster.score.toLocaleString('en-US')} points in Poda-Poda Run`;
+   $('previewStatus').textContent='2508 × 2508 PNG · Ready to share or save';
+   scorePreview.open();$('shareStatus').textContent='';
+ } catch(error) { $('shareStatus').textContent='Could not create the scorecard. Please try again.';console.error(error); }
+ finally {posterBusy=false;}
+}
+$('previewPoster').addEventListener('click',previewPoster);
+$('shareScore').addEventListener('click',previewPoster);
+$('closePreview').addEventListener('click',()=>scorePreview.close());
+$('sharePoster').addEventListener('click',()=>exportPoster(true));
 $('downloadPoster').addEventListener('click',()=>exportPoster(false));
 async function exportPoster(allowNativeShare){
- if(!lastResult)return;saveLocalScore();$('shareScore').disabled=true;$('shareStatus').textContent='Creating your 4K poster…';
- try{
- const blob=await createScorePoster({THREE,renderer,player:resultModel,name:$('driverName').value,score:lastResult.score,vehicle:resultVehicle,route:resultRoute,url:gameURL});
- const file=new File([blob],'poda-poda-score.png',{type:'image/png'});
- if(allowNativeShare && navigator.canShare?.({files:[file]})){$('shareScore').disabled=false;$('shareStatus').textContent='Choose an app in the share dialog, or use Download PNG.';try{await navigator.share({files:[file],title:'Poda-Poda Run',text:`I scored ${lastResult.score.toLocaleString('en-US')} in Poda-Poda Run. Think you can beat me? Play: ${gameURL}`});$('shareStatus').textContent='Poster shared.';return;}catch(error){if(error.name==='AbortError'){$('shareStatus').textContent='Sharing cancelled. Your score is saved.';return;}}}
- const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=file.name;a.click();setTimeout(()=>URL.revokeObjectURL(url),30000);$('shareStatus').textContent='4K PNG downloaded. Share it with your crew!';
- }catch(error){$('shareStatus').textContent='Could not create the poster. Please try again.';console.error(error);}finally{$('shareScore').disabled=false;}
+ if(!posterCache||posterBusy)return;
+ const poster=posterCache, file=new File([poster.blob],'poda-poda-score.png',{type:'image/png'});
+ posterBusy=true;
+ try {
+   if(allowNativeShare && navigator.canShare?.({files:[file]})) {
+     await navigator.share({files:[file],title:'Poda-Poda Run',text:`I scored ${poster.score.toLocaleString('en-US')} in Poda-Poda Run. Can you beat me? ${gameURL}`});
+     $('previewStatus').textContent='Scorecard shared.';return;
+   }
+   const a=document.createElement('a');a.href=poster.url;a.download=file.name;a.click();
+   $('previewStatus').textContent='PNG saved. Share it with your crew!';
+ } catch(error) { $('previewStatus').textContent=error.name==='AbortError'?'Sharing cancelled. You can still save your PNG.':'Sharing unavailable. Use Save PNG instead.'; }
+ finally {posterBusy=false;}
 }
+let leaderboardRequest = 0;
 async function loadLeaderboard() {
- const period=$('leaderPeriod').value,now=new Date(),start=new Date(now);start.setHours(0,0,0,0);if(period==='week')start.setDate(start.getDate()-(start.getDay()+6)%7);
- const entries=readScores().filter(r=>period==='all'||r.date>=start.getTime()).sort((a,b)=>b.score-a.score);
- $('leaderEntries').replaceChildren();$('leaderMessage').textContent='This device · '+(entries.length?'Best driving scores':'No saved scores yet.');
- for(const entry of entries){const li=document.createElement('li');li.textContent=`${entry.name} — ${entry.score.toLocaleString('en-US')} · ${routeName(entry.route)||'Run'} · ${CONFIG.vehicles[entry.vehicle]?.name||'Poda'}`;$('leaderEntries').append(li);}
+ const serial = ++leaderboardRequest, period=$('leaderPeriod').value;
+ $('leaderEntries').replaceChildren(); $('leaderMe').textContent='';
+ if ($('leaderScope').value === 'local') {
+   const now = new Date(), start = new Date(now); start.setUTCHours(0,0,0,0);
+   if (period === 'week') start.setUTCDate(start.getUTCDate() - (start.getUTCDay()+6)%7);
+   const entries = readScores().filter(r => period === 'all' || r.date >= start.getTime()).sort((a,b)=>b.score-a.score);
+   $('leaderMessage').textContent = period === 'earners' ? 'Top earners is a global account ranking. Device fares are not verified lifetime earnings.' : 'This device · ' + (entries.length ? 'Saved driving scores' : 'No saved scores yet.');
+   if (period === 'earners') return;
+   for (const entry of entries) { const li=document.createElement('li'); li.textContent=`${entry.name} — ${entry.score.toLocaleString('en-US')} · ${routeName(entry.route)||'Run'} · ${CONFIG.vehicles[entry.vehicle]?.name||'Poda'}`; $('leaderEntries').append(li); }
+   return;
+ }
+ $('leaderMessage').textContent='Loading global drivers…';
+ try {
+   const board=await api.leaderboard(period); if (serial !== leaderboardRequest) return;
+   $('leaderMessage').textContent=board.entries.length ? 'Best accepted runs · '+(period==='earners'?'Lifetime fares':'UTC periods') : 'No accepted runs yet. Be the first driver on this board.';
+   for (const entry of board.entries) {
+     const li=document.createElement('li'), name=document.createElement('span'), value=document.createElement('strong');
+     name.textContent=`#${entry.rank} ${entry.name}`; value.textContent=(period==='earners'?'Le ':'')+entry.value.toLocaleString('en-US');
+     li.append(name,value); if (entry.playerId === board.me?.playerId) li.classList.add('is-me'); $('leaderEntries').append(li);
+   }
+   $('leaderMe').textContent=board.me ? `Your position: #${board.me.rank} · ${period==='earners'?'Le ':''}${board.me.value.toLocaleString('en-US')}` : api.account?.player ? 'You have no accepted run in this period yet.' : 'Sign in before your next run to earn an official position.';
+ } catch (error) { if (serial === leaderboardRequest) $('leaderMessage').textContent=error.message+' You can view This device above.'; }
 }
+$('leaderScope').addEventListener('change',loadLeaderboard);
+$('leaderRefresh').addEventListener('click',loadLeaderboard);
 
 /* ---------- Autopilot (title-screen attract mode and #demo) ---------- */
 function autopilot() {
@@ -2108,6 +2220,16 @@ fontsReady.catch(() => {}).then(() => {
   cameraSystem.lookX = S.x;
   camera.lookAt(S.x, 1.5, -16);
   showBest();
+  accountUI = createAccountUI({ api, store, onProfileChange: syncResultName, canApply: () => state === 'attract', applyPreferences: preferences => {
+    if (state !== 'attract') return;
+    const controls = {'poda-vehicle':'rideSelect','poda-route':'routeSelect','poda-livery':'garageLivery',
+      'poda-slogan':'garageSlogan','poda-paint':'bodyPaint','poda-rack':'rackSelect','poda-cargo':'cargoSelect',
+      'poda-wheels':'wheelSelect','poda-trim':'bodyTrim','poda-board':'routeBoard','poda-sticker':'stickerSelect','poda-horn':'hornSelect'};
+    for (const [key, id] of Object.entries(controls)) {
+      const control = $(id), value = preferences[key];
+      if (value && Array.from(control.options).some(option => option.value === value)) { control.value=value; control.dispatchEvent(new Event('change')); }
+    }
+  }});
   const savedQuality = store.get('poda-quality') || 'auto';
   $('qualityProfile').value = savedQuality;
   qualityManager.setProfile(savedQuality);

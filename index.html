@@ -63,7 +63,7 @@
   <div id="title" class="screen">
     <header class="start-topbar">
       <div class="start-brand"><span class="start-brand-mark" aria-hidden="true">▰</span><div><small>Freetown, Sierra Leone</small><strong>Poda-Poda <em>Run</em></strong></div></div>
-      <div class="start-topbar-right"><div class="start-radio" aria-label="Featured soundtrack"><span aria-hidden="true">♫</span><div><small>MUSIC</small><strong>Drizilik · Sabi Road</strong></div></div><div class="start-best"><small>BEST SCORE</small><strong id="bestTitle">—</strong></div></div>
+      <div class="start-topbar-right"><button id="accountTitle" class="account-link" type="button">Driver profile</button><div class="start-radio" aria-label="Featured soundtrack"><span aria-hidden="true">♫</span><div><small>MUSIC</small><strong>Drizilik · Sabi Road</strong></div></div><div class="start-best"><small>BEST SCORE</small><strong id="bestTitle">—</strong></div></div>
     </header>
 
     <div class="start-side start-side-left">
@@ -73,7 +73,7 @@
 
     <div class="start-side start-side-right">
       <button class="start-side-button" id="missionsTitle" type="button"><span aria-hidden="true">⭐</span><span><small>THINGS TO DO</small><strong>Goals</strong></span><b aria-hidden="true">↗</b></button>
-      <button class="start-side-button" id="leadersTitle" type="button"><span aria-hidden="true">🏆</span><span><small>ON THIS DEVICE</small><strong>Best scores</strong></span><b aria-hidden="true">↗</b></button>
+      <button class="start-side-button" id="leadersTitle" type="button"><span aria-hidden="true">🏆</span><span><small>FREETOWN DRIVERS</small><strong>Leaderboard</strong></span><b aria-hidden="true">↗</b></button>
     </div>
 
     <div class="start-bottom">
@@ -108,13 +108,22 @@
           <div><span aria-hidden="true">💵</span><b id="sCash">Le 0</b><small>Fares</small></div>
         </div>
       </section>
+      <section class="result-personalize" aria-label="Personalize your scorecard">
+        <form id="guestNameForm">
+          <label for="driverName">Nickname (optional)</label>
+          <div class="nickname-controls"><input id="driverName" placeholder="e.g. Mark from Freetown" autocomplete="nickname" aria-describedby="nicknameHint"><button class="secondaryBtn" id="saveScore" type="submit">Save name</button></div>
+        </form>
+        <p id="nicknameHint">No account needed. Leave blank to use Guest Driver.</p>
+        <p id="nicknameStatus" role="status"></p>
+        <button id="editAccountName" class="secondaryBtn" type="button" hidden>Edit public driver name</button>
+        <button id="previewPoster" class="secondaryBtn" type="button">Preview scorecard</button>
+      </section>
       <details class="result-details"><summary>Trip details & save score</summary>
         <div class="result-details-body">
           <div class="result-stop-stats"><span>Stops made <b id="sStops">0</b></span><span>Stops missed <b id="sMissed">0</b></span><span>Perfect stops <b id="sPerfect">0</b></span></div>
           <p id="scoreBreakdown"></p><p id="missionSummary"></p>
-          <label for="driverName">Your name</label><input id="driverName" maxlength="24" placeholder="Salone driver" autocomplete="nickname">
           <p id="onlineStatus"></p>
-          <div class="row"><button class="secondaryBtn" id="saveScore" type="button">Save score</button><button class="secondaryBtn" id="downloadPoster" type="button">Download picture</button><button class="secondaryBtn" id="copyLink" type="button">Copy game link</button></div>
+          <button class="secondaryBtn" id="copyLink" type="button">Copy game link</button>
         </div>
       </details>
       <nav class="result-nav" aria-label="After your run">
@@ -123,9 +132,20 @@
         <button id="garageResult" type="button"><span aria-hidden="true">🚐</span>Garage</button>
       </nav>
       <div class="result-actions"><button id="shareScore" type="button">↑ Share</button><button id="againBtn" class="game-primary" type="button">Go again</button></div>
+      <section class="cloud-result" aria-label="Cloud progress">
+        <p id="cloudRunStatus" role="status">Saved on this device.</p>
+        <div id="resultSignIn"><p>Save future runs and join the global leaderboard.</p><a class="google-login" data-google-login href="/api/auth/google" hidden>Continue with Google</a></div>
+        <button id="accountResult" class="secondaryBtn" type="button">Driver profile</button>
+      </section>
       <p id="shareStatus" aria-live="polite"></p>
     </div>
   </div>
+  <dialog id="scorePreview" aria-labelledby="scorePreviewTitle">
+    <h2 id="scorePreviewTitle">Your scorecard</h2>
+    <img id="scorePreviewImage" alt="Your personalized Poda-Poda Run scorecard">
+    <p id="previewStatus" role="status"></p>
+    <div class="preview-actions"><button id="sharePoster" class="secondaryBtn" type="button">Share image</button><button id="downloadPoster" class="secondaryBtn" type="button">Save PNG</button><button id="closePreview" class="secondaryBtn" type="button">Back</button></div>
+  </dialog>
   <div id="pause" class="screen" hidden role="dialog" aria-modal="true" aria-labelledby="pauseTitle">
     <div class="pause-card">
       <h1 id="pauseTitle">Paused</h1>
@@ -140,18 +160,20 @@
     </div>
   </div>
   <dialog id="leaveRun" class="leave-run" aria-labelledby="leaveRunTitle"><h2 id="leaveRunTitle">End this run?</h2><p>Your score and goals will be kept on this device.</p><button id="keepDriving" type="button">Stay here</button><button id="leaveConfirm" type="button">End run & go home</button></dialog>
-  <div id="leaderboard" class="screen" hidden>
+  <dialog id="leaderboard" class="screen" aria-label="Leaderboard" hidden>
     <div class="plate">
-      <div class="plate-top"><div class="eyebrow">Freetown drivers</div><h1>Best scores</h1></div>
+      <div class="plate-top"><div class="eyebrow">Freetown drivers</div><h1>Leaderboard</h1></div>
       <div class="plate-body">
-        <label for="leaderPeriod">Period</label>
-        <select id="leaderPeriod"><option value="today">Today</option><option value="week">This week</option><option value="all">All time</option></select>
+        <label for="leaderScope">Scores</label>
+        <select id="leaderScope"><option value="global">Global drivers</option><option value="local">This device</option></select>
+        <label for="leaderPeriod">Period · UTC</label>
+        <select id="leaderPeriod"><option value="today">Today</option><option value="week">This week</option><option value="all">All time</option><option value="earners">Top earners</option></select>
         <p id="leaderMessage" aria-live="polite">Loading…</p>
-        <ol id="leaderEntries"></ol>
+        <ol id="leaderEntries"></ol><p id="leaderMe" class="personal-rank"></p><button id="leaderRefresh" class="secondaryBtn" type="button">Refresh</button>
         <button class="secondaryBtn" id="leaderClose" type="button">Close</button>
       </div>
     </div>
-  </div>
+  </dialog>
   <div id="missionsPanel" class="screen" hidden>
     <div class="plate"><div class="plate-top"><div class="eyebrow">Your route goals</div><h1>Goals</h1></div><div class="plate-body"><p id="missionsText"></p><button id="missionsClose" class="secondaryBtn">Back</button></div></div>
   </div>
@@ -179,6 +201,21 @@
     </div>
   </div>
 </div>
+
+<dialog id="accountPanel" class="account-panel" aria-labelledby="accountHeading">
+  <div class="account-heading"><div><small>YOUR DRIVER CARD</small><h2 id="accountHeading">Driver profile</h2></div><button id="accountClose" type="button" aria-label="Close driver profile">×</button></div>
+  <div id="accountGuest"><p id="accountAvailability"></p><a class="google-login" data-google-login href="/api/auth/google" hidden>Continue with Google</a><p class="account-note">You can always play as a guest. Existing device scores stay local and do not enter the global rankings.</p></div>
+  <div id="accountSignedIn" hidden>
+    <form id="accountNameForm"><label for="accountName">Public driver name</label><input id="accountName" autocomplete="nickname" minlength="3" maxlength="20" pattern="[A-Za-z0-9_]{3,20}" required><p id="accountNameHint" class="account-note"></p><button id="saveDriverName" class="secondaryBtn" type="submit">Save name</button></form>
+    <dl id="accountStats" class="account-stats"></dl>
+    <p id="cloudGoals" class="account-note"></p>
+    <p class="account-note">Global results are checked against the game rules. Fares are lifetime earnings; coins are separate. Central runs and practice runs stay on this device.</p>
+    <button id="importPreferences" class="secondaryBtn" type="button">Save this device’s garage choices</button>
+    <button id="applyCloudPreferences" class="secondaryBtn" type="button">Use cloud garage choices</button>
+    <button id="accountLogout" class="secondaryBtn" type="button">Sign out</button>
+  </div>
+  <p id="accountMessage" role="status"></p><button id="accountRefresh" class="secondaryBtn" type="button">Refresh profile & retry saves</button>
+</dialog>
 
 <!-- Plug-ins: each file registers into window.PODA (see PLUGINS.md) -->
 <script type="module" src="/src/main.js"></script>

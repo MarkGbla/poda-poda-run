@@ -1,38 +1,32 @@
-const test = require('node:test');
-const assert = require('node:assert/strict');
-const client = require('../src/simulation/RunRules.js');
-
-test('server and game use the same score formula', async () => {
-  const { calculateOfficialScore, validateRun } = await import('../server/services/ScoreValidator.mjs');
-  const run = {
-    completed: true, distance: 4800, earnings: 57, coins: 9,
-    passengersDelivered: 7, passengersOnboard: 0, passengersLost: 1,
-    stopsServed: 10, stopsMissed: 2, perfectStops: 3, collisions: 1,
-  };
-  assert.equal(calculateOfficialScore(run), client.calculateScore({
-    completed: run.completed, dist: run.distance, dropped: run.passengersDelivered,
-    stops: run.stopsServed, missedStops: run.stopsMissed,
-    perfectStops: run.perfectStops, collisions: run.collisions,
-  }));
-  assert.equal(validateRun(run, 300000, 301000), null);
-  assert.match(validateRun({ ...run, perfectStops: 11 }, 300000, 301000), /stop grades/);
-  assert.match(validateRun({ ...run, distance: 50000 }, 300000, 301000), /Distance/);
-  assert.match(validateRun({ ...run, earnings: 51 }, 300000, 301000), /earnings/);
-  assert.match(validateRun({ ...run, stopsMissed: 1 }, 300000, 301000), /Incomplete route/);
+const test=require('node:test');
+const assert=require('node:assert/strict');
+const {summary}=require('./helpers/account-db.cjs');
+test('shared formula and vehicle/route bounds validate all ranked combinations',async()=>{
+  const {validateRun,calculateOfficialScore}=await import('../server/services/ScoreValidator.mjs');
+  for(const route of ['western','eastern','crosscity']) for(const vehicle of ['poda','kekeh','taxi','okada','waka']) {
+    const run=summary({passengersOnboard:0});
+    assert.equal(validateRun(run,60000,60000,route,vehicle),null,route+' '+vehicle);
+    assert.equal(calculateOfficialScore(run),run.score);
+    const config = require('../src/data/GameConfig.js');
+    const stops = config.routes[route].stops.length - 1;
+    const completed = summary({ completed:true, stopsServed:stops, distance:stops*560,
+      passengersOnboard:0, passengersDelivered:1, perfectStops:stops, earnings:6+5*stops });
+    assert.equal(validateRun(completed,600000,600000,route,vehicle),null,'completed '+route+' '+vehicle);
+  }
+  const run=summary();
+  const check=(extra)=>validateRun({...run,...extra},60000,60000,'western','poda');
+  assert.match(check({distance:99999}),/Distance/);
+  assert.match(check({earnings:999999}),/earnings/);
+  assert.match(check({passengersOnboard:15}),/passenger/);
+  assert.match(check({perfectStops:2}),/stop grades/);
+  assert.match(check({score:999999}),/Score/);
+  assert.match(check({style:-1}),/style/);
+  assert.match(check({completed:true}),/Incomplete/);
+  assert.match(validateRun(run,60000,1000,'western','poda'),/Duration/);
 });
-
-test('API reports missing D1 without exposing internals', async () => {
-  const worker = (await import('../server/worker.mjs')).default;
-  const response = await worker.fetch(new Request('https://example.test/api/leaderboard'), {});
-  assert.equal(response.status, 503);
-  assert.deepEqual(await response.json(), { error: 'Leaderboard unavailable' });
-});
-
-test('API rejects malformed anonymous player IDs before writing a session', async () => {
-  const worker = (await import('../server/worker.mjs')).default;
-  const response = await worker.fetch(new Request('https://example.test/api/runs/start', {
-    method: 'POST', body: JSON.stringify({ playerId: '------------------------------------' }),
-  }), { DB: {} });
-  assert.equal(response.status, 400);
-  assert.deepEqual(await response.json(), { error: 'Invalid player ID' });
+test('unconfigured backend leaves guest identity and local play available',async()=>{
+  const worker=(await import('../server/worker.mjs')).default;
+  const me=await worker.fetch(new Request('https://example.test/api/me'),{});
+  assert.equal((await me.json()).authAvailable,false);
+  assert.equal((await worker.fetch(new Request('https://example.test/api/leaderboard'),{})).status,503);
 });
