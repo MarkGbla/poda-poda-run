@@ -4,7 +4,7 @@
 
 The client and Worker implement Google sign-in, opaque cookie sessions, unique public driver names, cloud garage preferences, accepted-run statistics, and Today / This week / All time / Top earners leaderboards. Guest play and device scores remain available without a backend.
 
-The checked-in production `wrangler.jsonc` has no D1 binding or Google credentials. This work does not deploy or enable production accounts. Configure the following before launch.
+The checked-in production `wrangler.jsonc` has the `podapodarun` D1 binding, both remote migrations are applied, and the production Worker has a `GOOGLE_CLIENT_SECRET`. The live API offers Google sign-in; its callback still needs a real-account browser test.
 
 ## Local development
 
@@ -12,21 +12,24 @@ The checked-in production `wrangler.jsonc` has no D1 binding or Google credentia
 npm install
 npm run build
 npm run db:local
-cp .dev.vars.example .dev.vars
+cp .env.example .env
+ln -s .env .dev.vars
 npm run dev:cloud
 ```
 
-Use `http://localhost:8787`. `wrangler.local.jsonc` is strictly a local configuration; never deploy it. The migrations command applies both migrations to local D1. For actual Google login, create a Google OAuth Web application client, register `http://localhost:8787/api/auth/google/callback` as an authorized redirect URI, and fill `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in the ignored `.dev.vars` file. Use the localhost hostname consistently.
+Use `http://localhost:8787`. `wrangler.local.jsonc` is strictly a local configuration; never deploy it. The migrations command applies both migrations to local D1. For actual Google login, create a Google OAuth Web application client, register `http://localhost:8787/api/auth/google/callback` as an authorized redirect URI, and fill `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in the ignored `.env` file. The `.dev.vars` symlink lets Wrangler read that same file as Worker bindings. Use the localhost hostname consistently.
 
 `npm run dev` serves the game only, without the Worker API. `node tests/helpers/account-preview.cjs` provides an optional local, in-memory browser fixture on port 5190: `/?fixture=driver` seeds a fake signed-in driver and `/?fixture=guest` clears its cookie. This test helper is never bundled into the app or Worker.
 
 ## Production configuration
 
-1. Create a Cloudflare D1 database. Copy the DB binding from `wrangler.example.jsonc` into `wrangler.jsonc`, using its real database ID and `server/db/migrations` as the migrations directory.
-2. Set `PUBLIC_ORIGIN` to the exact HTTPS game origin, with no trailing slash. Set `ACCOUNTS_ENABLED` to `true`. Optionally configure the example `RUN_RATE_LIMITER` binding with an account-unique namespace ID.
+For the exact production D1 binding now in `wrangler.jsonc`, follow [the step-by-step D1 connection guide](cloudflare-d1-connection.md). Remote migration and deployment require Wrangler access to the Cloudflare account that owns `podapodarun`.
+
+1. Confirm that Cloudflare D1 database `podapodarun` has ID `08c30206-6529-46f8-8876-8ac2fc9a46a1`. The production `wrangler.jsonc` already binds it as `DB` and points migrations to `server/db/migrations`.
+2. Confirm that `PUBLIC_ORIGIN` is the exact HTTPS game origin, with no trailing slash. `ACCOUNTS_ENABLED` is set to `true`. Optionally configure the example `RUN_RATE_LIMITER` binding with an account-unique namespace ID.
 3. Create/configure the Google OAuth Web client and consent screen. Register the exact production callback: `https://YOUR_GAME_DOMAIN/api/auth/google/callback`. During Google's testing mode, add the intended test users. The app requests only `openid`.
-4. Set secrets using `npx wrangler secret put GOOGLE_CLIENT_ID` and `npx wrangler secret put GOOGLE_CLIENT_SECRET`. Never put credentials in client code, tracked files, or public Vite variables.
-5. Back up an existing database, then run `npx wrangler d1 migrations apply DB --remote`. Both numbered migrations are required. Legacy anonymous rows are retained but excluded from account statistics and rankings.
+4. The public Google client ID is already in `wrangler.jsonc`. Set the private secret using `npx wrangler secret put GOOGLE_CLIENT_SECRET`; never put its value in client code, tracked files, or public Vite variables.
+5. Both numbered migrations are already recorded on the remote database. Run `npx wrangler d1 migrations list DB --remote` to verify that no pending migration remains. Legacy anonymous rows are excluded from account statistics and rankings.
 6. Run `npm test`, `npm run build`, and `npx wrangler deploy --dry-run`. Deploy the reviewed Worker and assets together using `npm run deploy` when ready. For Workers Builds, explicitly set `npm run build` as the build command and `npx wrangler deploy` as the deploy command.
 7. Verify Google login on the real origin, choose a name, complete an eligible run, reload, and check the account and all leaderboard views. Repeat on a second device. Verify logout and guest play. Automated OAuth tests mock Google's network; they do not replace this credential/domain check.
 

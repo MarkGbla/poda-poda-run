@@ -11,12 +11,17 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "poda-poda-run",
+      "database_name": "podapodarun",
       "database_id": "REPLACE_WITH_YOUR_D1_DATABASE_ID",
       "migrations_dir": "server/db/migrations"
     }
   ],
-  "vars": { "PUBLIC_ORIGIN": "https://podapodarun.com", "ACCOUNTS_ENABLED": "true" },
+  "vars": {
+    "PUBLIC_ORIGIN": "https://podapodarun.com",
+    "ACCOUNTS_ENABLED": "true",
+    "GOOGLE_CLIENT_ID": "288666325440-2vctm4qamkbp3vu9eg9cijfknntij2o1.apps.googleusercontent.com"
+  },
+  "secrets": { "required": ["GOOGLE_CLIENT_SECRET"] },
   "ratelimits": [
     {
       "name": "RUN_RATE_LIMITER",

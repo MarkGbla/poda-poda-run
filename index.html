@@ -134,7 +134,7 @@
       <div class="result-actions"><button id="shareScore" type="button">↑ Share</button><button id="againBtn" class="game-primary" type="button">Go again</button></div>
       <section class="cloud-result" aria-label="Cloud progress">
         <p id="cloudRunStatus" role="status">Saved on this device.</p>
-        <div id="resultSignIn"><p>Save future runs and join the global leaderboard.</p><a class="google-login" data-google-login href="/api/auth/google" hidden>Continue with Google</a></div>
+        <div id="resultSignIn"><p>Save future runs and join the global leaderboard.</p><a class="google-login" data-google-login href="/api/auth/google" aria-label="Sign up or sign in with Google" hidden><img src="/google-g.svg" alt="" width="24" height="24"><span>Continue with Google</span><span class="google-login-arrow" aria-hidden="true">→</span></a></div>
         <button id="accountResult" class="secondaryBtn" type="button">Driver profile</button>
       </section>
       <p id="shareStatus" aria-live="polite"></p>
@@ -204,7 +204,7 @@
 
 <dialog id="accountPanel" class="account-panel" aria-labelledby="accountHeading">
   <div class="account-heading"><div><small>YOUR DRIVER CARD</small><h2 id="accountHeading">Driver profile</h2></div><button id="accountClose" type="button" aria-label="Close driver profile">×</button></div>
-  <div id="accountGuest"><p id="accountAvailability"></p><a class="google-login" data-google-login href="/api/auth/google" hidden>Continue with Google</a><p class="account-note">You can always play as a guest. Existing device scores stay local and do not enter the global rankings.</p></div>
+  <div id="accountGuest"><p id="accountAvailability"></p><a class="google-login" data-google-login href="/api/auth/google" aria-label="Sign up or sign in with Google" hidden><img src="/google-g.svg" alt="" width="24" height="24"><span>Continue with Google</span><span class="google-login-arrow" aria-hidden="true">→</span></a><p class="account-note">Your account is created the first time you continue with Google. You can always play as a guest; existing device scores stay local.</p></div>
   <div id="accountSignedIn" hidden>
     <form id="accountNameForm"><label for="accountName">Public driver name</label><input id="accountName" autocomplete="nickname" minlength="3" maxlength="20" pattern="[A-Za-z0-9_]{3,20}" required><p id="accountNameHint" class="account-note"></p><button id="saveDriverName" class="secondaryBtn" type="submit">Save name</button></form>
     <dl id="accountStats" class="account-stats"></dl>

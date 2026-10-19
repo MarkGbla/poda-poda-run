@@ -37,7 +37,7 @@ test('real OAuth callback flow checks PKCE, consumes state once and deduplicates
     for(let i=0;i<2;i++) {
       const start=await worker.fetch(request('/api/auth/google'),env);
       const target=new URL(start.headers.get('location')), state=target.searchParams.get('state');
-      assert.equal(target.searchParams.get('scope'),'openid email profile');assert.equal(target.searchParams.get('code_challenge_method'),'S256');
+      assert.equal(target.searchParams.get('scope'),'openid');assert.equal(target.searchParams.get('code_challenge_method'),'S256');
       nonce=target.searchParams.get('nonce');
       verifier=DB.sql.prepare('SELECT verifier FROM oauth_attempts WHERE state_hash=?').get(await hash(state)).verifier;
       const browserCookie=start.headers.get('set-cookie').split(';')[0];

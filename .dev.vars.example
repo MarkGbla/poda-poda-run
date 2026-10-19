@@ -1,4 +1,6 @@
-# Copy to .dev.vars for wrangler.local.jsonc (ignored by Git).
-# Register http://localhost:8787/api/auth/google/callback on a development web OAuth client.
+# Legacy example. Use .env.example -> .env and link .dev.vars to .env instead.
+# Wrangler reads .dev.vars; the symlink keeps .env as the one local file to edit.
+PUBLIC_ORIGIN="http://localhost:8787"
+ACCOUNTS_ENABLED="true"
 GOOGLE_CLIENT_ID=""
 GOOGLE_CLIENT_SECRET=""

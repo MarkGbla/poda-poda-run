@@ -24,7 +24,7 @@ export async function beginLogin(request, env) {
   ]);
   const url = new URL(google.authorization_endpoint);
   url.search = new URLSearchParams({ client_id: env.GOOGLE_CLIENT_ID, redirect_uri: callback(env),
-    response_type: 'code', scope: 'openid email profile', state, nonce,
+    response_type: 'code', scope: 'openid', state, nonce,
     code_challenge: await oauth.calculatePKCECodeChallenge(verifier), code_challenge_method: 'S256' }).toString();
   return redirect(url.href, [cookie(request, 'oauth', browser, 600)]);
 }
