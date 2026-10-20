@@ -11,12 +11,16 @@ export function createAccountUI({ api, store, applyPreferences, canApply, onProf
   function render() {
     const account = api.account, player = account?.player;
     onProfileChange();
-    $('accountTitle').textContent = player?.driver_name || (player ? 'Choose driver name' : 'Driver profile');
+    $('accountTitle').textContent = player?.driver_name || (player ? 'Choose driver name' : 'Sign in / sign up');
     $('accountSignedIn').hidden = !player; $('accountGuest').hidden = !!player;
     $('accountName').value = player?.driver_name || '';
     $('resultSignIn').hidden = !!player;
+    $('homeSignIn').hidden = !!player;
+    $('homeSignInStatus').textContent = account?.authAvailable
+      ? 'Log in or sign up · Join the global rankings'
+      : 'Connect your account to join the global rankings';
     for (const el of document.querySelectorAll('[data-google-login]')) {
-      el.hidden = !!player || !account?.authAvailable;
+      el.hidden = !!player || (el.id !== 'homeGoogleLogin' && !account?.authAvailable);
     }
     $('accountAvailability').textContent = account?.authAvailable ? 'Save future runs, earn your place, and return on any device.' : 'Cloud accounts are not available right now. You can keep playing and saving on this device.';
     if (!player) return;
@@ -69,6 +73,12 @@ export function createAccountUI({ api, store, applyPreferences, canApply, onProf
     dirty = true; clearTimeout(syncTimer);
     syncTimer = setTimeout(savePreferences, 700);
   }
+  $('homeGoogleLogin').addEventListener('click', async event => {
+    if (api.account?.authAvailable) return;
+    event.preventDefault();
+    open();
+    await refresh();
+  });
   $('accountTitle').addEventListener('click', open);
   $('accountResult').addEventListener('click', open);
   $('accountClose').addEventListener('click', close);

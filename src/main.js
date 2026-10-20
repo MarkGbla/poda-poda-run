@@ -1079,6 +1079,7 @@ function laneTo(d) {
   S.lane = clamp(S.lane + d, 0, 2);
 }
 addEventListener('keydown', e => {
+  if (e.key === 'Escape' && $('radio').classList.contains('music-open')) { setMusicOpen(false); $('musicToggle').focus(); e.preventDefault(); return; }
   if(e.target?.closest?.('input,select,textarea,button,summary,a,dialog'))return;
   if (e.repeat && !['ArrowDown', 's', 'S', ' ', 'ArrowUp', 'w', 'W'].includes(e.key)) return;
   if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') {
@@ -1092,6 +1093,7 @@ addEventListener('keydown', e => {
     else if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') { inputManager.command('ACCELERATE'); e.preventDefault(); }
     else if (e.key === ' ' && !e.repeat) { e.preventDefault(); jump(); }
     else if (e.key === 'h' || e.key === 'H') inputManager.command('HORN');
+    else if (e.key === 'r' || e.key === 'R') nextSong();
     else if (e.key === 'm' || e.key === 'M') inputManager.command('MUTE');
   } else if (state === 'attract' || state === 'over' || state === 'complete') {
     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); startRun(); }
@@ -1253,7 +1255,7 @@ function syncSoundButtons() {
   $('pauseMute').querySelector('b').textContent = muted ? 'Sound off' : 'Sound on';
   $('pauseMute').setAttribute('aria-pressed', String(!muted));
 }
-function toggleMute() { muted = !muted; store.set('poda-muted', muted ? '1' : '0'); syncSoundButtons(); if (muted) pauseRunAudio(); }
+function toggleMute() { muted = !muted; store.set('poda-muted', muted ? '1' : '0'); syncSoundButtons(); if (muted) pauseRunAudio(); else playMusic(); aux.el.muted = muted || aux.muted; auxLabel(); }
 syncSoundButtons();
 function tone(f, dur, type, vol, f2, when = 0) {
   const a = audio(); if (!a || muted) return;
@@ -1271,7 +1273,7 @@ function noise(dur, vol, cutoff) {
   s.connect(f).connect(g).connect(a.destination); s.start();
 }
 /* ---------- Music: a synthesised Salone afropop riddim, plus AUX for the player's own songs ----------
-   Plays while the poda is moving and drops right down while it's stopped. */
+   Plays throughout a run, including passenger stops; pauses with the game. */
 const music = { gain: null, noise: null, next: 0, step: 0 };
 const STEP = 60 / 104 / 4;                       // 16th notes at 104 bpm
 const ROOTS = [110, 87.31, 130.81, 98];          // Am – F – C – G
@@ -1279,15 +1281,22 @@ const CHORD = [[0, 3, 7], [0, 4, 7], [0, 4, 7], [0, 4, 7]];
 const KICK = [1,0,0,0, 0,0,1,0, 1,0,0,1, 0,0,0,0];
 const BASS = [1,0,0,1, 0,0,2,0, 1,0,0,1, 0,0,2,0];
 const STAB = [0,0,1,0, 0,0,0,1, 0,0,1,0, 0,0,0,1];
-// Default song while the poda moves. Streamed, not decoded, so it stays light on memory.
-// If the file isn't there (e.g. a public build without it), the synthesised riddim takes over.
-const DEFAULT_SONG = { name: 'Drizilik – Sabi Road', url: new URL('../audio/sabi-road.mp3', import.meta.url).href };
-const aux = { el: new Audio(), list: [DEFAULT_SONG], i: 0 };
-aux.el.preload = 'none'; aux.el.src = DEFAULT_SONG.url; aux.el.volume = 0;
+// Stream one song at a time; the Drive gesture unlocks browser audio playback.
+const SOUNDTRACK = [
+  { name: 'Go', artist: 'Drizilik', url: new URL('../audio/drizilik-go.mp3', import.meta.url).href },
+  { name: 'Audacity', artist: 'Drizilik · D4nny Beatz', url: new URL('../audio/drizilik-audacity.mp3', import.meta.url).href },
+  { name: 'Alpha and Omega', artist: 'Drizilik', url: new URL('../audio/drizilik-alpha-and-omega.mp3', import.meta.url).href },
+  { name: 'Sabi Road', artist: 'Drizilik', url: new URL('../audio/sabi-road.mp3', import.meta.url).href },
+];
+const aux = { el: new Audio(), list: [...SOUNDTRACK], i: 0, paused: false,
+  muted: store.get('poda-music-muted') === '1', blocked: false, pending: false, request: 0 };
+aux.el.id = 'soundtrackAudio'; aux.el.hidden = true; document.body.append(aux.el);
+aux.el.preload = 'none'; aux.el.src = aux.list[0].url; aux.el.volume = 0.65;
 aux.el.addEventListener('error', () => {
-  if (aux.list[aux.i] !== DEFAULT_SONG) return;
-  aux.list = aux.list.filter(t => t !== DEFAULT_SONG); aux.i = 0;
-  if (aux.list.length) aux.el.src = aux.list[0].url;
+  aux.request++; aux.pending = false;
+  aux.list.splice(aux.i, 1);
+  aux.i = aux.list.length ? aux.i % aux.list.length : 0;
+  if (aux.list.length) { aux.el.src = aux.list[aux.i].url; playMusic(); }
   auxLabel();
 });
 function musicInit() {
@@ -1322,17 +1331,9 @@ function playStep(i, t) {
 }
 function musicTick(dt) {
   const a = ac; if (!a || !music.gain) return;
-  const moving = state === 'play' && S.speed > 2 && S.dwell <= 0;
-  const level = muted ? 0 : state !== 'play' ? 0 : moving ? 1 : 0.15;
+  const level = muted || aux.muted || aux.paused || document.hidden || state !== 'play' ? 0 : 1;
   const usingAux = aux.list.length > 0;
   music.gain.gain.setTargetAtTime(usingAux ? 0 : level * 0.36, a.currentTime, 0.35);
-  if (usingAux) {
-    // songs play only while the poda moves: fade out and pause at stops, pick up where they left off
-    const want = level === 1 ? 0.85 : 0;
-    aux.el.volume = clamp(aux.el.volume + (want - aux.el.volume) * Math.min(1, dt * (want ? 2 : 4)), 0, 1);
-    if (aux.el.paused && want > 0) aux.el.play().catch(() => {});
-    if (want === 0 && aux.el.volume < 0.01 && !aux.el.paused) aux.el.pause();
-  }
   if (usingAux || level === 0) { music.next = a.currentTime + 0.05; return; } // idle: schedule nothing
   while (music.next < a.currentTime + 0.12) { playStep(music.step, music.next); music.next += STEP; music.step = (music.step + 1) % 64; }
 }
@@ -1367,6 +1368,7 @@ function engineTick() {
   engine.lp.frequency.setTargetAtTime(700 + 2600 * sp + (pushing ? 500 : 0), t, 0.2);
 }
 function pauseRunAudio() {
+  aux.request++; aux.pending = false;
   aux.el.pause();
   aux.el.volume = 0;
   if (!ac) return;
@@ -1382,21 +1384,76 @@ document.addEventListener('visibilitychange', () => {
 });
 addEventListener('pagehide', () => { pauseRunAudio(); ac?.suspend(); });
 
-function auxLabel() {
-  const t = aux.list.length ? aux.list[aux.i].name : 'Salone Riddim';
-  $('auxBtn').innerHTML = '♪ <b></b> · AUX'; $('auxBtn').querySelector('b').textContent = t;
+function setMusicOpen(open) {
+  $('radio').classList.toggle('music-open', open);
+  $('musicToggle').setAttribute('aria-expanded', String(open));
+  $('musicToggle').setAttribute('aria-label', open ? 'Close music controls' : 'Open music controls');
 }
-aux.el.addEventListener('ended', () => {
-  if (!aux.list.length || state !== 'play' || muted || document.hidden) return;
-  aux.i = (aux.i + 1) % aux.list.length; aux.el.src = aux.list[aux.i].url; aux.el.play().catch(() => {}); auxLabel(); });
+$('musicToggle').addEventListener('click', () => setMusicOpen(!$('radio').classList.contains('music-open')));
+canvas.addEventListener('pointerdown', () => setMusicOpen(false));
+
+function auxLabel() {
+  const track = aux.list[aux.i];
+  $('musicTitle').textContent = track?.name || 'Salone Riddim';
+  $('musicArtist').textContent = track?.artist || (track ? 'Your music' : 'Poda Radio');
+  $('musicStatus').textContent = aux.blocked ? 'TAP PLAY TO LISTEN' : aux.paused ? 'MUSIC PAUSED' :
+    muted || aux.muted ? 'MUSIC MUTED' : 'PODA RADIO · ' + (track?.artist ? 'AUDACITY' : 'YOUR MIX');
+  $('musicPlay').textContent = aux.paused || aux.blocked ? '▶' : 'Ⅱ';
+  const label = aux.paused || aux.blocked ? 'Play music' : 'Pause music';
+  $('musicPlay').setAttribute('aria-label', label); $('musicPlay').title = label;
+  $('musicMute').textContent = aux.muted ? '♪×' : '♫';
+  $('musicMute').setAttribute('aria-label', aux.muted ? 'Unmute music' : 'Mute music');
+  $('musicMute').title = aux.muted ? 'Unmute music' : 'Mute music';
+  $('musicMute').setAttribute('aria-pressed', String(aux.muted));
+  $('musicNext').disabled = aux.list.length < 2;
+  const playing = state === 'play' && !document.hidden && !aux.el.paused && aux.el.readyState >= 3 && !aux.paused && !aux.muted && !muted && !aux.blocked;
+  $('musicPlayer').classList.toggle('is-playing', playing);
+  $('musicToggle').classList.toggle('is-playing', playing);
+  $('musicToggle').classList.toggle('is-quiet', aux.paused || aux.muted || muted || aux.blocked);
+}
+function playMusic() {
+  if (!aux.list.length || aux.paused || state !== 'play' || document.hidden || aux.pending) return;
+  aux.el.muted = muted || aux.muted;
+  aux.el.volume = 0.65;
+  aux.blocked = false;
+  const request = ++aux.request;
+  aux.pending = true;
+  aux.el.play().catch(error => {
+    if (request === aux.request && error.name !== 'AbortError') aux.blocked = true;
+  }).finally(() => {
+    if (request === aux.request) { aux.pending = false; auxLabel(); }
+  });
+}
+function nextSong() {
+  if (!aux.list.length) return;
+  aux.request++; aux.pending = false;
+  aux.i = (aux.i + 1) % aux.list.length;
+  aux.el.src = aux.list[aux.i].url;
+  playMusic(); auxLabel();
+}
+aux.el.addEventListener('ended', nextSong);
+for (const event of ['playing', 'pause', 'waiting', 'stalled', 'emptied', 'ended', 'volumechange']) aux.el.addEventListener(event, auxLabel);
+$('musicPlay').addEventListener('click', () => {
+  aux.paused = aux.blocked ? false : !aux.paused;
+  if (aux.paused) { aux.request++; aux.pending = false; aux.el.pause(); }
+  else playMusic();
+  auxLabel();
+});
+$('musicNext').addEventListener('click', nextSong);
+$('musicMute').addEventListener('click', () => {
+  aux.muted = !aux.muted; store.set('poda-music-muted', aux.muted ? '1' : '0');
+  aux.el.muted = muted || aux.muted; auxLabel();
+});
 $('auxBtn').addEventListener('click', () => $('auxFile').click());
 $('auxFile').addEventListener('change', e => {
   const files = [...e.target.files]; if (!files.length) return;
+  aux.request++; aux.pending = false; aux.el.pause();
   for (const t of aux.list) if (t.url.startsWith('blob:')) URL.revokeObjectURL(t.url);
   aux.list = files.map(f => ({ name: f.name.replace(/\.[^.]+$/, ''), url: URL.createObjectURL(f) }));
-  aux.i = 0; aux.el.src = aux.list[0].url; aux.el.volume = 0; auxLabel();
-  musicInit(); e.target.value = '';
+  aux.i = 0; aux.paused = false; aux.el.src = aux.list[0].url;
+  musicInit(); playMusic(); auxLabel(); e.target.value = '';
 });
+auxLabel();
 
 function sfx(k) {
   if (state !== 'play' && !demo) return;
@@ -1426,6 +1483,8 @@ function renderBody() {
   const condition = S.condition == null ? RULES.CONDITION : S.condition;
   const els = $('body').children;
   for (let i = 0; i < els.length; i++) els[i].className = i < condition ? '' : 'off';
+  $('body').setAttribute('role', 'img');
+  $('body').setAttribute('aria-label', 'Bus condition: ' + condition + ' of ' + els.length);
   $('bodyLabel').textContent = condition <= 1 ? 'One more knock ends the run'
     : shaken ? 'Shaken — tek tem' : 'Bus ready';
 }
@@ -1532,10 +1591,11 @@ function startRun() {
   $('pause').hidden = true;
   $('leaveRun').close();
   $('radio').inert = false;
+  setMusicOpen(false);
   $('hud').inert = false;
   lastHud = ''; lastRouteRail = '';
   $('title').hidden = true; $('over').hidden = true; $('hud').hidden = false; $('touch').hidden = false; $('radio').hidden = false;
-  musicInit(); engineInit();
+  musicInit(); engineInit(); playMusic();
   popsEl.innerHTML = '';
   pop('Hold GAS · swipe the road to steer');
   updateHud();
@@ -1549,6 +1609,8 @@ function pauseRun() {
   changeState('paused');
   pauseRunAudio();
   inputManager.release();
+  setMusicOpen(false);
+  $('pauseTripStats').textContent = 'Fares ' + $('cash').textContent + ' · Distance ' + $('dist').textContent;
   $('pause').hidden = false; $('touch').hidden = true;
   $('radio').inert = true;
   $('hud').inert = true;
@@ -1565,7 +1627,7 @@ function pauseRun() {
 function resumeRun() {
   if (state !== 'paused' || $('leaveRun').open) return;
   ac?.resume();
-  changeState('play'); clock.reset(); canvas.focus();
+  changeState('play'); clock.reset(); canvas.focus(); playMusic();
   $('pause').hidden = true; $('touch').hidden = false;
   $('radio').inert = false;
   $('hud').inert = false;

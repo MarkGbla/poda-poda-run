@@ -47,15 +47,24 @@
   <div id="pops" aria-live="polite"></div>
 
   <div id="touch" hidden>
-    <button id="hornBtn" type="button"><span aria-hidden="true">◀))</span><b>HORN</b></button>
+    <button id="hornBtn" type="button" aria-label="Horn"><b>PÒÒN!</b></button>
     <div class="pedals">
-      <button id="brakeBtn" type="button"><span aria-hidden="true">◉</span><b>BRAKE</b></button>
-      <button id="gasBtn" type="button"><span aria-hidden="true">▥</span><b>GAS</b></button>
+      <button id="brakeBtn" type="button"><b>BRAKE</b></button>
+      <button id="gasBtn" type="button"><b>GAS</b></button>
     </div>
   </div>
   <div id="radio" hidden>
     <button id="pauseBtn" type="button" aria-label="Pause game" title="Pause game">Ⅱ</button>
-    <button id="auxBtn" type="button" title="Play your own songs from this device">♪ <b>Drizilik – Sabi Road</b> · AUX</button>
+    <button id="musicToggle" type="button" aria-label="Open music controls" aria-expanded="false" aria-controls="musicPlayer" title="Music controls"><svg viewBox="0 0 24 24" aria-hidden="true"><g fill="currentColor"><rect class="radio-bar" x="4" y="9" width="4" height="12" rx=".7"/><rect class="radio-bar" x="10" y="3" width="4" height="18" rx=".7"/><rect class="radio-bar" x="16" y="6" width="4" height="15" rx=".7"/></g></svg></button>
+    <section id="musicPlayer" aria-label="Music player">
+      <div class="music-info" aria-live="polite"><small id="musicStatus">PODA RADIO · AUDACITY</small><strong id="musicTitle">Go</strong><span id="musicArtist">Drizilik</span></div>
+      <div class="music-controls">
+        <button id="musicPlay" type="button" aria-label="Pause music" title="Pause music">Ⅱ</button>
+        <button id="musicNext" type="button" aria-label="Next song" title="Next song (R)">▸▸</button>
+        <button id="musicMute" type="button" aria-label="Mute music" title="Mute music" aria-pressed="false">♫</button>
+        <button id="auxBtn" type="button" aria-label="Choose your own music" title="Choose your own music">AUX</button>
+      </div>
+    </section>
     <button id="mute" type="button">Sound: on</button>
   </div>
   <input id="auxFile" type="file" accept="audio/*" multiple hidden>
@@ -63,7 +72,7 @@
   <div id="title" class="screen">
     <header class="start-topbar">
       <div class="start-brand"><span class="start-brand-mark" aria-hidden="true">▰</span><div><small>Freetown, Sierra Leone</small><strong>Poda-Poda <em>Run</em></strong></div></div>
-      <div class="start-topbar-right"><button id="accountTitle" class="account-link" type="button">Driver profile</button><div class="start-radio" aria-label="Featured soundtrack"><span aria-hidden="true">♫</span><div><small>MUSIC</small><strong>Drizilik · Sabi Road</strong></div></div><div class="start-best"><small>BEST SCORE</small><strong id="bestTitle">—</strong></div></div>
+      <div class="start-topbar-right"><button id="accountTitle" class="account-link" type="button">Driver profile</button><div class="start-radio" aria-label="Featured soundtrack"><span aria-hidden="true">♫</span><div><small>MUSIC</small><strong>Drizilik · Audacity</strong></div></div><div class="start-best"><small>BEST SCORE</small><strong id="bestTitle">—</strong></div></div>
     </header>
 
     <div class="start-side start-side-left">
@@ -85,9 +94,13 @@
       <button class="start-drive" id="startBtn" type="button">Tap to drive</button>
       <nav class="start-dock" aria-label="Start menu">
         <button id="garageTitle" type="button"><span aria-hidden="true">🚐</span>Garage</button>
-        <a href="./score.html"><span aria-hidden="true">🎫</span>Score card</a>
+        <a href="./score.html"><span aria-hidden="true">🎫</span>Scorecard</a>
         <button id="titleHow" type="button"><span aria-hidden="true">🛣️</span>How to play</button>
       </nav>
+      <div id="homeSignIn" class="start-signin">
+        <a id="homeGoogleLogin" class="google-login" data-google-login href="/api/auth/google" aria-label="Sign up or sign in with Google"><img src="/google-g.svg" alt="" width="24" height="24"><span>Sign in with Google</span><span class="google-login-arrow" aria-hidden="true">→</span></a>
+        <p id="homeSignInStatus" role="status">Log in or sign up · Join the global rankings</p>
+      </div>
     </div>
     <dialog id="titleHelp" class="start-help"><h2>Work a shift across Freetown</h2><p>Stop inside the yellow box to load passengers, then drop them at their stops. Keep your poda in good shape and finish the route.</p><dl><dt>Steer</dt><dd>← → or swipe sideways</dd><dt>Gas / brake</dt><dd>↑ / ↓ or the on-screen pedals</dd><dt>Hop / horn</dt><dd>Space / H, or swipe up to hop</dd></dl><button id="titleHelpClose" type="button">Got it</button></dialog>
   </div>
@@ -150,6 +163,7 @@
     <div class="pause-card">
       <h1 id="pauseTitle">Paused</h1>
       <div id="pauseGoals" class="pause-goals" aria-label="Your goals"></div>
+      <p id="pauseTripStats" class="pause-trip-stats"></p>
       <nav class="pause-actions" aria-label="Pause menu">
         <button id="homePause" type="button"><span aria-hidden="true">🏠</span>Home</button>
         <button id="pauseMute" type="button"><span aria-hidden="true">🔊</span><b>Sound on</b></button>
