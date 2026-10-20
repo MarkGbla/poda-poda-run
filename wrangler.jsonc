@@ -18,10 +18,9 @@
   ],
   "vars": {
     "PUBLIC_ORIGIN": "https://podapodarun.com",
-    "ACCOUNTS_ENABLED": "true",
-    "GOOGLE_CLIENT_ID":
+    "ACCOUNTS_ENABLED": "true"
   },
   "secrets": {
-    "required": ["GOOGLE_CLIENT_SECRET"]
+    "required": ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"]
   }
 }
