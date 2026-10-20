@@ -227,7 +227,6 @@
 #radio .music-controls button:focus-visible { outline:3px solid #ffcf48; outline-offset:2px; }
 #radio .music-controls button:disabled { opacity:.4; }
 #musicPlayer.is-playing .music-info small::before { content:'● '; color:#59df8f; }
-@media (hover:hover) and (pointer:fine) and (min-width:701px) { #musicPlayer { bottom:18px; } }
 @media (max-width:700px) and (orientation:portrait) {
   #musicPlayer { left:11px; right:auto; bottom:calc(env(safe-area-inset-bottom,0px) + 49px); width:calc(100vw - 206px); max-width:230px; padding:7px; }
   .music-info strong { font-size:13px; }
