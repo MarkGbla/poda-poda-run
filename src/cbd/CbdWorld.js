@@ -125,6 +125,12 @@ function makeTextures(kit) {
     g.fillStyle = '#d9d4c8'; g.fillRect(wx - 10, wy + wh, ww + 20, 8);                    // sill
   });
   windows.wrapS = windows.wrapT = kit.THREE.RepeatWrapping;
+  const windowGlow = canvasTex(256, 205, (g) => {
+    g.fillStyle = '#000'; g.fillRect(0,0,256,205);
+    g.fillStyle = '#e7bd82'; g.fillRect(66,54,54,86);
+    g.fillStyle = '#695c4f'; g.fillRect(134,54,12,86);
+  });
+  windowGlow.wrapS = windowGlow.wrapT = kit.THREE.RepeatWrapping;
   // Ground floors: an atlas of 8 shop bays (4 m × 3.6 m each), 4 columns × 2 rows.
   const COLS = 4, ROWS = 2, CW = 256, CH = 230;
   const shops = canvasTex(CW * COLS, CH * ROWS, (g) => {
@@ -153,7 +159,15 @@ function makeTextures(kit) {
       g.restore();
     }
   });
-  return { windows, shops, shopCells: { COLS, ROWS } };
+  const shopGlow = canvasTex(CW * COLS, CH * ROWS, g => {
+    g.fillStyle='#000';g.fillRect(0,0,CW*COLS,CH*ROWS);
+    for(let i=0;i<COLS*ROWS;i++) if(i%3!==2){
+      const x=(i%COLS)*CW,y=Math.floor(i/COLS)*CH;
+      g.fillStyle='#8b6845';g.fillRect(x+28,y+79,CW-56,CH-95);
+      g.fillStyle='#c3a16e';g.fillRect(x+12,y+17,CW-24,35);
+    }
+  });
+  return { windows, shops, windowGlow, shopGlow, shopCells: { COLS, ROWS } };
 }
 
 /* ---------- world ---------- */
@@ -168,8 +182,8 @@ export function createCbdWorld({ THREE, kit, data, route, textures: baseTex, bak
     road: new THREE.MeshStandardMaterial({ map: roadMap, bumpMap: roadDetail, bumpScale: 0.05, roughnessMap: roadDetail, roughness: 0.9, metalness: 0, vertexColors: true }),
     walk: new THREE.MeshStandardMaterial({ map: walkMap, roughness: 1, vertexColors: true }),
     vc: new THREE.MeshLambertMaterial({ vertexColors: true }),
-    win: new THREE.MeshLambertMaterial({ map: tex.windows, vertexColors: true }),
-    shop: new THREE.MeshLambertMaterial({ map: tex.shops, vertexColors: true }),
+    win: new THREE.MeshLambertMaterial({ map: tex.windows, emissiveMap: tex.windowGlow, vertexColors: true }),
+    shop: new THREE.MeshLambertMaterial({ map: tex.shops, emissiveMap: tex.shopGlow, vertexColors: true }),
   };
   const { path } = route;
   const RH = 3.4 * 1.5 + 0.35;                               // ROAD_HALF, as main.js
@@ -387,12 +401,14 @@ export function createCbdWorld({ THREE, kit, data, route, textures: baseTex, bak
 
   /* --- 5. street furniture: lamps on the main streets, umbrellas near the market --- */
   const furniture = new THREE.Group();
+  const lampPositions = [];
   const lamp = (s, side) => {
     const f = path.toWorld(s, side * (RH + 0.9), {});
     B.box('vc', f.x, 3.5, f.z, 0.16, 7, 0.16, 0, 0x6f7377);
     const arm = path.toWorld(s, side * (RH - 0.4), {});
     B.box('vc', (f.x + arm.x) / 2, 6.95, (f.z + arm.z) / 2, 0.1, 0.1, 1.4, f.heading + Math.PI / 2, 0x6f7377);
     B.box('vc', arm.x, 6.85, arm.z, 0.5, 0.16, 0.28, f.heading, 0xe9e5cf);
+    lampPositions.push({ x: arm.x, z: arm.z });
   };
   const turns = route.turns;
   const nearTurn = s => turns.some(t => path.closed ? path.wrap(s - t.sStart + 20) < t.sEnd - t.sStart + 40 : s >= t.sStart - 20 && s <= t.sEnd + 40);
@@ -421,5 +437,5 @@ export function createCbdWorld({ THREE, kit, data, route, textures: baseTex, bak
   group.add(furniture);
   if (bake) bake(furniture);
 
-  return { group, stats, buildings: buildingOut, buildingMeshes, materials };
+  return { group, stats, buildings: buildingOut, buildingMeshes, materials, lampPositions };
 }

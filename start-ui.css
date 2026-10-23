@@ -131,3 +131,5 @@
   #title #startBtn { min-height: 48px; font-size: 30px; margin: 0; }
   .start-dock button, .start-dock a { min-height: 43px; flex-direction: row; }
 }
+.start-environment{display:flex;align-items:center;justify-content:center;gap:.5rem;color:#f5f5ed;font-weight:700;font-size:.85rem;text-shadow:0 1px 3px #14232c}
+.start-environment select{font:inherit;color:#172638;background:#fff5df;border:1px solid #d9cba8;border-radius:.45rem;padding:.2rem .45rem}

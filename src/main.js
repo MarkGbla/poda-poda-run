@@ -24,6 +24,9 @@ import { createFreightFactory } from './assets/vehicles/freight.js';
 import { TrafficPool } from './assets/vehicles/trafficPool.js';
 import { createStreetAssets } from './assets/roads/streetAssets.js';
 import { createCbdMode } from './cbd/CbdMode.js';
+import { EnvironmentManager, ENVIRONMENT } from './rendering/EnvironmentManager.js';
+import { attachVehicleLights } from './rendering/VehicleLights.js';
+import { createStreetLights } from './rendering/StreetLights.js';
 import '../vehicles.js';
 import '../districts-west.js';
 import '../districts-east.js';
@@ -147,6 +150,8 @@ sun.shadow.bias = -0.0008;
 scene.add(sun, sun.target);
 const cameraSystem = new window.PODA_CameraSystem(camera, sun, rand);
 const qualityManager = new window.PODA_QualityManager(renderer, sun, scene, resize, devicePixelRatio);
+const environment = new EnvironmentManager({ renderer, scene, hemi, sun, quality: qualityManager });
+let streetLighting = null;
 
 /* shared geometry + material cache */
 const G = {
@@ -451,7 +456,17 @@ let streetAssets, freight, lumleyDetails, roles;
 const trafficPool = new TrafficPool(bake);
 const makeSendMe = createSendMeFactory(bake);
 const sendMeFrame = {};
-function pooled(key, factory) { return trafficPool.acquire(key, factory); }
+function pooled(key, factory) {
+  const o = trafficPool.acquire(key, factory);
+  const kind = key.startsWith('benchmark') ? null : /^(box|flatbed|tipper|tanker|container|coach)\d+$/.test(key) ? 'freight' : key;
+  if (['poda','taxi','kekeh','okada','sendme','waka','freight'].includes(kind)) attachVehicleLights(o.g, kind, { length:o.len });
+  if (key.startsWith('pothole') && !o.g.userData.nightRim) {
+    const rim = new THREE.Mesh(new THREE.RingGeometry(.44,.55,20).rotateX(-Math.PI/2), new THREE.MeshBasicMaterial({ color:0x777f7f, transparent:true, opacity:.45, depthWrite:false, side:THREE.DoubleSide }));
+    rim.position.y=.043; rim.scale.setScalar(o.wid/1.8); rim.visible=false;
+    o.g.add(rim); o.g.userData.nightRim=rim;
+  }
+  return o;
+}
 function releaseObstacle(o) { if (o.poolKey) trafficPool.release(o); else drop(o.g); }
 const kit = {};   // filled at boot; handed to every plug-in
 function makePerson(opt = {}) {
@@ -609,6 +624,7 @@ function buildStatic() {
   // The straight road and its backdrop; the CBD mode hides this and draws real streets.
   const staticRoot = new THREE.Group(); staticRoot.name = 'street-static'; scene.add(staticRoot);
   const road = new THREE.Mesh(new THREE.PlaneGeometry(ROAD_HALF * 2, 200), new THREE.MeshStandardMaterial({ map: roadTex, bumpMap: roadDetailTex, bumpScale: .05, roughnessMap: roadDetailTex, roughness: .9, metalness: 0 }));
+  environment.addRoad(road.material);
   road.rotation.x = -Math.PI / 2; road.position.set(0, 0, -90); road.receiveShadow = true; staticRoot.add(road);
   for (const s of [-1, 1]) {
     const channel = new THREE.Mesh(new THREE.PlaneGeometry(.36, 200), M(0x343a36));
@@ -634,6 +650,7 @@ function buildStatic() {
     }
     const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
     const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: new THREE.Color(color).convertSRGBToLinear(), side: THREE.DoubleSide, fog: false }));
+    environment.addBackdrop(mesh.material, color, 0x27374b);
     staticRoot.add(mesh);
   }
   ridge(-495, false, 0x68858d);
@@ -646,14 +663,17 @@ function buildStatic() {
     if (Math.random() < .6) add(hillHouses, G.box, pick([0x7e655a, 0x76776e, 0x807f75]), w + .2, .45, .65, x, y + h / 2, z);
   }
   staticRoot.add(hillHouses); bake(hillHouses);
-  for (const m of hillHouses.children) m.material = new THREE.MeshBasicMaterial({ vertexColors: true, fog: false });
+  for (const m of hillHouses.children) { m.material = new THREE.MeshBasicMaterial({ vertexColors: true, fog: false }); environment.addBackdrop(m.material, 0xffffff, 0x586071); }
   const cloudG = new THREE.Group();
   for (let i = 0; i < 6; i++) {
     const cx = rand(-320, 320), cy = rand(120, 190), cz = rand(-520, -380);
     for (let j = 0; j < 4; j++) add(cloudG, G.sph, 0xffffff, rand(18, 34), rand(8, 13), rand(10, 16), cx + j * 14 - 20, cy + rand(-2, 3), cz + rand(-4, 4));
   }
   staticRoot.add(cloudG); bake(cloudG);
-  for (const m of cloudG.children) m.material = new THREE.MeshLambertMaterial({ vertexColors: true, emissive: 0xa8b6bc, fog: false });
+  for (const m of cloudG.children) {
+    m.material = new THREE.MeshLambertMaterial({ vertexColors: true, emissive: 0xa8b6bc, fog: false });
+    environment.subscribe(p => { m.material.emissive.setHex(p.vehicles > .5 ? 0x111d30 : 0xa8b6bc); m.material.color.setHex(p.vehicles > .5 ? 0x51617b : 0xffffff); });
+  }
 
   // hillside slopes, one pair per chunk
   const slope = (s) => {
@@ -755,6 +775,7 @@ function fillChunk(ch) {
     add(c, G.box, 0x545b55, .29, .015, .58, x, .036, z);
     for (const dz of [-.18, 0, .18]) add(c, G.box, 0x252b28, .22, .003, .035, x, .046, z + dz);
   }
+  for (const side of [-1,1]) add(c, G.box, 0x686d72, .13, 6.8, .13, side*(ROAD_HALF+1.2), 3.4, -CH/2);
   if (PLUG.people) PLUG.people.lodDefault = undefined;
   const trimmed=[];c.traverse(o=>{if(o.userData.decorativePerson&&Math.random()>qualityManager.budget.crowd)trimmed.push(o);});for(const person of trimmed)person.parent?.remove(person);
   bake(c);
@@ -863,13 +884,6 @@ function changeState(next) { state = stateMachine.transition(next); }
 const inputManager = new window.PODA_InputManager({ moveLane: laneTo, horn, pause: () => state === 'paused' ? resumeRun() : pauseRun(), mute: toggleMute });
 const input = inputManager.state;
 
-function resetRun() {
-  inputManager.release();
-  for (const o of obstacles) releaseObstacle(o);
-  for (const c of coins) coinFree(c);
-  for (const b of boosts) world.remove(b.m);
-  for (const d of debris) drop(d.g);
-  if (stopObj) drop(stopObj.g);
 // Explicit local-only diagnostics. Normal players never create these objects.
 const trafficDebug = (() => {
   if (!params.has('trafficDebug') || !['localhost','127.0.0.1'].includes(location.hostname)) return null;
@@ -895,6 +909,14 @@ const trafficDebug = (() => {
     label.textContent=`PLAYER SPEED ${S.speed.toFixed(1)} m/s\nNPC SPEED ${nearest?.speed.toFixed(1)??'—'} m/s\nRELATIVE ${(nearest?S.speed-nearest.speed:0).toFixed(1)} m/s\nDISTANCE ${nearest?distance.toFixed(1):'—'} m\nPLAYER LANE ${S.lane}\nNPC LANE ${nearest?.lane??'—'}\nFOLLOWING GAP ${nearest&&Number.isFinite(nearest.leaderGap)?nearest.leaderGap.toFixed(1):'—'} m\nDELTA ${(dt*1000).toFixed(1)} ms\nCOLLISION ${nearest?window.PODA_CollisionSystem.overlapsPlayer(S,nearest):false}`;
   }};
 })();
+
+function resetRun() {
+  inputManager.release();
+  for (const o of obstacles) releaseObstacle(o);
+  for (const c of coins) coinFree(c);
+  for (const b of boosts) world.remove(b.m);
+  for (const d of debris) drop(d.g);
+  if (stopObj) drop(stopObj.g);
   obstacles = []; coins = []; boosts = []; debris = []; stopObj = null;
   Object.assign(S, {
     vehicle: CONFIG.vehicles[vehicleId], jumpY:0, jumpVelocity:0, jumpCooldown:0, bump:0,
@@ -906,6 +928,7 @@ const trafficDebug = (() => {
     style: 0, fastTime: 0, multiplier: 1,
     reversing: false, reverseSpeed: RULES.REVERSE_SPEED, condition: RULES.CONDITION,
   });
+  S.previousLightSpeed = S.speed;
   // Buses start half-full; the motorcycle starts ready for its first pickup.
   if (cbd) { cbd.reset(); S.toStop = S.legLen = cbd.distanceToStop(1); }
   for (let i = 0; i < (vehicleId === 'okada' ? 0 : Math.ceil(CAP / 2)); i++) S.pax.push(randi(0, 2));
@@ -1039,6 +1062,13 @@ function spawnRow(z) {
     else if (r < 0.84) { o = makeHawker(); speed = 0; cross = 1; }
     else if(r<.89){const g=new THREE.Group();add(g,G.box,0xe1a242,1.6,.35,.5,0,.18,0);o={g,wid:1.6,len:.5,static:true,jumpable:true};speed=0;}
     else { const v=randi(0,4); o=pooled('pothole'+v,()=>streetAssets.pothole(v)); speed=0; }
+    if (speed > 0) {
+      const paceRoll = Math.random();
+      const pace = paceRoll < .18 ? rand(.82,.93) : paceRoll < .78 ? rand(.96,1.06) : rand(1.07,1.15);
+      speed *= pace;
+      o.passSide = Math.random() < .5 ? -1 : 1;
+      o.passLead = rand(2.5,3.3);
+    }
     o.cruise=speed; o.weave=false; o.lane = lane; o.speed = speed; o.z = z; o.x = LANES[lane];
     if (cross) {
       const dir = Math.random() < 0.5 ? -1 : 1;
@@ -1061,13 +1091,6 @@ function spawnRow(z) {
     add(m, G.cyl, 0x8a4b12, 0.42, 1.0, 0.42, 0, 0, 0);
     add(m, G.cyl, 0x8a4b12, 0.2, 0.4, 0.2, 0, 0.66, 0);
     add(m, G.cyl, 0xf6ecd6, 0.44, 0.35, 0.44, 0, 0.05, 0);
-    if (speed > 0) {
-      const paceRoll = Math.random();
-      const pace = paceRoll < .18 ? rand(.82,.93) : paceRoll < .78 ? rand(.96,1.06) : rand(1.07,1.15);
-      speed *= pace;
-      o.passSide = Math.random() < .5 ? -1 : 1;
-      o.passLead = rand(2.5,3.3);
-    }
     m.position.set(LANES[l], 1.2, z - 10); world.add(m); boosts.push({ m, x: LANES[l], z: z - 10 });
   }
 }
@@ -1197,6 +1220,8 @@ titleHelp.addEventListener('click', event => { if (event.target === titleHelp) t
 for(const [id,v] of Object.entries(CONFIG.vehicles)) $('rideSelect').add(new Option(v.name,id));
 for(const [id,r] of Object.entries(CONFIG.routes)) $('routeSelect').add(new Option(r.name+' · '+r.difficulty,id));
 $('rideSelect').value=vehicleId; $('routeSelect').value=routeId;
+$('environmentSelect').value = store.get('poda-environment') === 'NIGHT' ? 'NIGHT' : 'DAY';
+$('environmentSelect').addEventListener('change', e => store.set('poda-environment', e.target.value));
 function updateTitleRoute() {
  const ids=Object.keys(CONFIG.routes), index=ids.indexOf(routeId), route=CONFIG.routes[routeId];
  $('titleRouteIndex').textContent=`ROUTE ${String(index+1).padStart(2,'0')} / ${String(ids.length).padStart(2,'0')} · ${cbd ? 'MAPPED STREETS' : route.difficulty.toUpperCase()}`;
@@ -1234,7 +1259,10 @@ $('routeSelect').addEventListener('change',e=>{
   routeId=e.target.value; store.set('poda-route',routeId);
   if (CBD_FLAG) { const url = new URL(location.href); url.searchParams.delete('cbd'); history.replaceState(null, '', url); }
   if (routeId === 'central') {
-    if (!centralMode) centralMode = createCbdMode({ THREE, kit, scene, world, bake, textures: { road: roadTex, roadDetail: roadDetailTex, walk: walkTex } });
+    if (!centralMode) {
+      centralMode = createCbdMode({ THREE, kit, scene, world, bake, textures: { road: roadTex, roadDetail: roadDetailTex, walk: walkTex } });
+      setupCbdLighting(centralMode);
+    }
     cbd = centralMode;
   } else { centralMode?.setVisible(false); cbd = null; }
   PLUG.debug.cbd = cbd;
@@ -1621,6 +1649,8 @@ function startRun() {
   if (workshop) workshop.visible = false;
   world.visible = true;
   CAP=CONFIG.vehicles[vehicleId].capacity; DATA.route=routeStops(); buildPlayer();
+  // Fixed for the whole run, independent of local time.
+  environment.setState($('environmentSelect').value === 'NIGHT' ? 'NIGHT' : 'DAY');
   resetRun();
   for(const ch of chunks) fillChunk(ch);
   changeState('play');
@@ -1752,6 +1782,7 @@ function showBest() { const b = +store.get('poda-best-score') || 0; $('bestTitle
 function buildPlayer() {
   if (player) {
     scene.remove(player);
+    player.userData.vehicleLights?.dispose();
     player.traverse(part => { if (part.userData.baked) part.geometry.dispose(); });
   }
   player = vehicleId==='poda' ? makePoda(selectedSlogan, (store.get('poda-board')&&store.get('poda-board')!=='auto'?store.get('poda-board'):DATA.route[0].toUpperCase()+' – '+DATA.route.at(-1).toUpperCase()), SCHEMES[0], true, selectedLivery) : ({kekeh:makeKekeh,taxi:makeCar,okada:() => makeOkada({ player: true }),waka:makeWakaFine}[vehicleId]()).g;
@@ -1776,6 +1807,7 @@ function buildPlayer() {
     bikePassenger.visible = (S.pax?.length || 0) > 0;
   }
   if (apprentice) parent.add(apprentice);
+  attachVehicleLights(player, vehicleId, { player: true });
   scene.add(player);
   if(contactShadow)contactShadow.scale.set(CONFIG.vehicles[vehicleId].width/2.1,CONFIG.vehicles[vehicleId].length/5.4,1);
 }
@@ -1999,6 +2031,14 @@ function loop(now) {
     }else update(dt);
   }
   if(state==='garage') poseGarageCamera();
+  const preset = ENVIRONMENT[environment.state];
+  const playerBrake = input.brake || S.dwell > 0 || (S.previousLightSpeed ?? S.speed) - S.speed > .08;
+  player?.userData.vehicleLights?.update(preset, playerBrake, qualityManager.profile);
+  S.previousLightSpeed = S.speed;
+  for (const o of obstacles) {
+    o.g.userData.vehicleLights?.update(preset, !!o.braking, qualityManager.profile, Math.abs(o.z));
+    if (o.g.userData.nightRim) o.g.userData.nightRim.visible = environment.isNight;
+  }
   musicTick(dt);
   engineTick();
   for(const ch of chunks){
@@ -2198,14 +2238,15 @@ function update(dt) {
 
 function setupBenchmark() {
   changeState('play');
+  environment.setState(store.get('poda-environment') === 'NIGHT' ? 'NIGHT' : 'DAY');
   for(const o of obstacles)releaseObstacle(o);obstacles=[];
   for(const c of coins)coinFree(c);coins=[];
   coinIM.instanceMatrix.needsUpdate=true;
   S.x=0;S.lane=1;S.speed=13.3;S.toStop=420;S.legLen=600;
   player.position.set(0,0,0);player.rotation.set(0,0,0);
   contactShadow.position.x=0;
-  const fixtures=[[makeWakaFine,-3.4,-23],[makeKekeh,3.4,-18],[makeKekeh,-3.4,-45],[makeCar,0,-38],[()=>freight.make({type:'flatbed'}),3.4,-57]];
-  for(const [factory,x,z] of fixtures){const o=pooled('benchmark'+x+z,factory);o.g.position.set(x,0,z);world.add(o.g);obstacles.push(o);}
+  const fixtures=[[makeWakaFine,-3.4,-23,'waka'],[makeKekeh,3.4,-18,'kekeh'],[makeKekeh,-3.4,-45,'kekeh'],[makeCar,0,-38,'taxi'],[()=>freight.make({type:'flatbed'}),3.4,-57,'freight']];
+  for(const [factory,x,z,kind] of fixtures){const o=pooled('benchmark'+x+z,factory);attachVehicleLights(o.g,kind,{length:o.len});o.g.position.set(x,0,z);world.add(o.g);obstacles.push(o);}
   for(let i=0;i<5;i++){const o=pooled('pothole'+i,()=>streetAssets.pothole(i));o.g.position.set(i%2?-2.2:2.3,0,-9-i*10);world.add(o.g);obstacles.push(o);}
   camera.position.set(2,4.5,13.5);camera.lookAt(0,1.5,-16);cameraSystem.lookX=0;
   sun.position.set(-28,32,20);sun.target.position.set(0,0,-12);
@@ -2216,7 +2257,9 @@ let metricSeconds=0,metricFrames=0;
 function sampleMetrics(raw) {
   metricSeconds+=raw;metricFrames++;
   if(metricSeconds>=1){
-    const m={fps:Math.round(metricFrames/metricSeconds),calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,geometries:renderer.info.memory.geometries,textures:renderer.info.memory.textures,ratio:qualityManager.ratio};
+    let objects=0, dynamicLights=0, shadowLights=0;
+    scene.traverse(o => { if (!o.visible) return; objects++; if (o.isLight && o.intensity > 0) { dynamicLights++; if (o.castShadow) shadowLights++; } });
+    const m={fps:Math.round(metricFrames/metricSeconds),frameMs:1000*metricSeconds/metricFrames,calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,geometries:renderer.info.memory.geometries,textures:renderer.info.memory.textures,ratio:qualityManager.ratio,objects,dynamicLights,shadowLights,environment:environment.state};
     PLUG.debug.metrics=m;
     if(params.has('stats')){let el=$('renderStats');if(!el){el=document.createElement('output');el.id='renderStats';document.body.appendChild(el);}el.textContent=`${m.fps} FPS · ${m.calls} draws · ${Math.round(m.triangles/1000)}k triangles · DPR ${m.ratio.toFixed(2)}`;}
     metricSeconds=metricFrames=0;
@@ -2276,6 +2319,15 @@ function resize() {
   // The aerial sets its own aspect and field of view each frame in update().
   if (hud3d) hud3d.resize(w, h);
 }
+function setupCbdLighting(mode) {
+  environment.addRoad(mode.materials.road);
+  environment.addWindows(mode.materials.win);
+  environment.addWindows(mode.materials.shop);
+  environment.addBackdrop(mode.panorama.material, 0xffffff, 0x3f4a62);
+  streetLighting = createStreetLights(mode.lampPositions);
+  mode.group.add(streetLighting.group);
+  environment.subscribe(p => streetLighting.set(p.streetlights));
+}
 addEventListener('resize', resize);
 
 /* ================================================================
@@ -2320,11 +2372,18 @@ fontsReady.catch(() => {}).then(() => {
   }
   if (routeId === 'central') {
     centralMode = cbd = createCbdMode({ THREE, kit, scene, world, bake, textures: { road: roadTex, roadDetail: roadDetailTex, walk: walkTex } });
+    setupCbdLighting(cbd);
     scene.getObjectByName('street-static').visible = false;
     DATA.route = routeStops();
     PLUG.debug.cbd = cbd;
     selectionDetails();
     updateTitleRoute();
+  }
+  // Chunk lights recycle with their scenery.
+  for (const ch of chunks) {
+    const lights = createStreetLights([-1,1].map(side => ({ x:side*(ROAD_HALF+1.2), z:-CH/2 })));
+    ch.add(lights.group);
+    environment.subscribe(p => lights.set(p.streetlights));
   }
   if (params.has('garage')) return garage();
   for (const [id, label] of LIVERIES) $('garageLivery').add(new Option(label, id));

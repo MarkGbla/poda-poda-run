@@ -45,7 +45,7 @@ export function createCbdMode({ THREE, kit, scene, world, textures, bake }) {
   function mapPoint(v) { path.toWorld(s - v.z, v.x, f); v.set(f.x, v.y, f.z); return v; }
 
   return {
-    route, stats: built.stats, buildings: built.buildings, group: built.group,
+    route, stats: built.stats, buildings: built.buildings, group: built.group, panorama, materials: built.materials, lampPositions: built.lampPositions,
     setVisible(visible) { built.group.visible = panorama.visible = visible; },
     stopNames: route.stops.map(st => st.name),
     get s() { return s; },

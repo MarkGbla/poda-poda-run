@@ -14,6 +14,6 @@ export class TrafficPool {
     if(o.g.parent)o.g.parent.remove(o.g);
     let bin=this.free.get(o.poolKey);if(!bin)this.free.set(o.poolKey,bin=[]);
     if(bin.length<this.maximum)bin.push({g:o.g,wid:o.wid,len:o.len,flat:o.flat,weave:o.weave});
-    else o.g.traverse(m=>{if(m.userData.baked)m.geometry.dispose();});
+    else { o.g.userData.vehicleLights?.dispose(); const rim=o.g.userData.nightRim;if(rim){rim.geometry.dispose();rim.material.dispose();} o.g.traverse(m=>{if(m.userData.baked)m.geometry.dispose();}); }
   }
 }
