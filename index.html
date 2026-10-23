@@ -182,15 +182,26 @@
   </div>
   <dialog id="leaderboard" class="screen" aria-label="Leaderboard" hidden>
     <div class="plate">
-      <div class="plate-top"><div class="eyebrow">Freetown drivers</div><h1>Leaderboard</h1></div>
+      <div class="plate-top"><h1>Leaderboard</h1></div>
       <div class="plate-body">
-        <label for="leaderScope">Scores</label>
-        <select id="leaderScope"><option value="global">Global drivers</option><option value="local">This device</option></select>
-        <label for="leaderPeriod">Period · UTC</label>
-        <select id="leaderPeriod"><option value="today">Today</option><option value="week">This week</option><option value="all">All time</option><option value="earners">Top earners</option></select>
-        <p id="leaderMessage" aria-live="polite">Loading…</p>
-        <ol id="leaderEntries"></ol><p id="leaderMe" class="personal-rank"></p><button id="leaderRefresh" class="secondaryBtn" type="button">Refresh</button>
-        <button class="secondaryBtn" id="leaderClose" type="button">Close</button>
+        <div class="leader-switch" role="group" aria-label="Leaderboard scores">
+          <button type="button" data-leader-scope="global" aria-pressed="true"><span aria-hidden="true">🏆</span> Everyone</button>
+          <button type="button" data-leader-scope="local" aria-pressed="false"><span aria-hidden="true">🚐</span> This device</button>
+        </div>
+        <select id="leaderScope" hidden aria-label="Leaderboard scores"><option value="global">Everyone</option><option value="local">This device</option></select>
+        <div class="leader-meta"><span id="leaderCount">Drivers</span><button id="leaderRefresh" type="button" aria-label="Refresh leaderboard" title="Refresh leaderboard">↻</button></div>
+        <div class="leader-periods" role="group" aria-label="Leaderboard period">
+          <button type="button" data-leader-period="today" aria-pressed="true">Today</button>
+          <button type="button" data-leader-period="week" aria-pressed="false">This week</button>
+          <button type="button" data-leader-period="all" aria-pressed="false">All time</button>
+          <button type="button" data-leader-period="earners" aria-pressed="false">Earners</button>
+        </div>
+        <select id="leaderPeriod" hidden aria-label="Leaderboard period"><option value="today">Today</option><option value="week">This week</option><option value="all">All time</option><option value="earners">Earners</option></select>
+        <p id="leaderMessage" role="status" aria-live="polite">Loading…</p>
+        <ol id="leaderEntries"></ol>
+        <p id="leaderMe" class="personal-rank"></p>
+        <div class="leader-footer"><span id="leaderIdentity">Playing as Guest</span><button id="leaderChange" type="button">Change</button></div>
+        <button id="leaderClose" type="button">Done</button>
       </div>
     </div>
   </dialog>

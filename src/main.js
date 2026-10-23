@@ -1224,7 +1224,17 @@ $('garageSlogan').addEventListener('change', e => {
 });
 const leaderModal = modal($('leaderboard'));
 $('leaderClose').addEventListener('click', () => leaderModal.close());
-$('leaderPeriod').addEventListener('change', loadLeaderboard);
+$('leaderChange').addEventListener('click', () => accountUI?.open());
+$('accountPanel').addEventListener('close', () => { if ($('leaderboard').open) loadLeaderboard(); });
+for (const button of document.querySelectorAll('[data-leader-scope], [data-leader-period]')) {
+  button.addEventListener('click', () => {
+    const key = button.dataset.leaderScope ? 'leaderScope' : 'leaderPeriod';
+    $(key).value = button.dataset.leaderScope || button.dataset.leaderPeriod;
+    document.querySelectorAll(key === 'leaderScope' ? '[data-leader-scope]' : '[data-leader-period]')
+      .forEach(tab => tab.setAttribute('aria-pressed', String(tab === button)));
+    loadLeaderboard();
+  });
+}
 $('mute').addEventListener('click', toggleMute);
 addEventListener('visibilitychange', () => { if (document.hidden && state === 'play') pauseRun(); });
 
@@ -1854,28 +1864,43 @@ async function exportPoster(allowNativeShare){
  finally {posterBusy=false;}
 }
 let leaderboardRequest = 0;
+function leaderRow(rank, name, score, isMe = false, detail = '') {
+ const li = document.createElement('li');
+ const medal = document.createElement('span'); medal.className = 'leader-medal'; medal.textContent = rank;
+ const driver = document.createElement('span'); driver.className = 'leader-driver'; driver.textContent = name;
+ const value = document.createElement('strong'); value.className = 'leader-score'; value.textContent = score;
+ li.append(medal, driver);
+ if (isMe) { li.classList.add('is-me'); const you = document.createElement('span'); you.className = 'leader-you'; you.textContent = 'you'; li.append(you); }
+ if (detail) { const note = document.createElement('small'); note.textContent = detail; driver.append(note); }
+ li.append(value); return li;
+}
 async function loadLeaderboard() {
  const serial = ++leaderboardRequest, period=$('leaderPeriod').value;
  $('leaderEntries').replaceChildren(); $('leaderMe').textContent='';
+ $('leaderIdentity').textContent = 'Playing as ' + guestProfile.name(api.account?.player);
+ $('leaderCount').textContent = 'Drivers';
  if ($('leaderScope').value === 'local') {
    const now = new Date(), start = new Date(now); start.setUTCHours(0,0,0,0);
    if (period === 'week') start.setUTCDate(start.getUTCDate() - (start.getUTCDay()+6)%7);
    const entries = readScores().filter(r => period === 'all' || r.date >= start.getTime()).sort((a,b)=>b.score-a.score);
-   $('leaderMessage').textContent = period === 'earners' ? 'Top earners is a global account ranking. Device fares are not verified lifetime earnings.' : 'This device · ' + (entries.length ? 'Saved driving scores' : 'No saved scores yet.');
+   $('leaderMessage').textContent = period === 'earners' ? 'Earners are ranked globally by verified lifetime fares.' : entries.length ? '' : 'No saved scores yet.';
    if (period === 'earners') return;
-   for (const entry of entries) { const li=document.createElement('li'); li.textContent=`${entry.name} — ${entry.score.toLocaleString('en-US')} · ${routeName(entry.route)||'Run'} · ${CONFIG.vehicles[entry.vehicle]?.name||'Poda'}`; $('leaderEntries').append(li); }
+   $('leaderCount').textContent = `${entries.length} ${entries.length === 1 ? 'run' : 'runs'}`;
+   entries.forEach((entry, index) => $('leaderEntries').append(leaderRow(index + 1, entry.name, entry.score.toLocaleString('en-US'), false, `${routeName(entry.route)||'Run'} · ${CONFIG.vehicles[entry.vehicle]?.name||'Poda'}`)));
    return;
  }
  $('leaderMessage').textContent='Loading global drivers…';
  try {
    const board=await api.leaderboard(period); if (serial !== leaderboardRequest) return;
-   $('leaderMessage').textContent=board.entries.length ? 'Best accepted runs · '+(period==='earners'?'Lifetime fares':'UTC periods') : 'No accepted runs yet. Be the first driver on this board.';
+   $('leaderMessage').textContent=board.entries.length ? '' : 'No accepted runs yet. Be the first driver on this board.';
+   $('leaderCount').textContent=`${board.entries.length}${board.entries.length === 50 ? '+' : ''} ${board.entries.length === 1 ? 'driver' : 'drivers'}`;
    for (const entry of board.entries) {
-     const li=document.createElement('li'), name=document.createElement('span'), value=document.createElement('strong');
-     name.textContent=`#${entry.rank} ${entry.name}`; value.textContent=(period==='earners'?'Le ':'')+entry.value.toLocaleString('en-US');
-     li.append(name,value); if (entry.playerId === board.me?.playerId) li.classList.add('is-me'); $('leaderEntries').append(li);
+     $('leaderEntries').append(leaderRow(entry.rank, entry.name, (period==='earners'?'Le ':'')+entry.value.toLocaleString('en-US'), entry.playerId === board.me?.playerId));
    }
-   $('leaderMe').textContent=board.me ? `Your position: #${board.me.rank} · ${period==='earners'?'Le ':''}${board.me.value.toLocaleString('en-US')}` : api.account?.player ? 'You have no accepted run in this period yet.' : 'Sign in before your next run to earn an official position.';
+   if (board.me && !board.entries.some(entry => entry.playerId === board.me.playerId)) {
+     $('leaderMe').textContent = 'Your position';
+     $('leaderEntries').append(leaderRow(board.me.rank, board.me.name, (period==='earners'?'Le ':'')+board.me.value.toLocaleString('en-US'), true));
+   } else if (!board.me) $('leaderMe').textContent=api.account?.player ? 'You have no accepted run in this period yet.' : 'Sign in to earn an official position.';
  } catch (error) { if (serial === leaderboardRequest) $('leaderMessage').textContent=error.message+' You can view This device above.'; }
 }
 $('leaderScope').addEventListener('change',loadLeaderboard);
