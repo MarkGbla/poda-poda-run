@@ -192,8 +192,7 @@ async function main() {
     await page.waitForFunction(() => window.__podaSmokeMusic && !window.__podaSmokeMusic.paused, null, { timeout: 5000 }).catch(() => {});
     check('music resumes with the game', await page.evaluate(() => window.__podaSmokeMusic?.paused === false));
     await safeClick('#pauseBtn', 'pause before leaving');
-    await safeClick('#homePause', 'open leave confirmation');
-    await safeClick('#leaveConfirm', 'leave the run');
+    await safeClick('#homePause', 'end the run and return home');
     check('music stops on Home', await page.evaluate(() => window.__podaSmokeMusic?.paused === true));
     await safeClick('#startBtn', 'start another shift');
     await page.waitForFunction(() => window.__podaSmokeMusic && !window.__podaSmokeMusic.paused, null, { timeout: 5000 }).catch(() => {});
@@ -386,7 +385,6 @@ async function main() {
       await mobile.locator('#pauseBtn').tap();
       check('mobile pause is reachable', await mobile.isVisible('#pause'));
       await mobile.locator('#homePause').tap();
-      await mobile.locator('#leaveConfirm').tap();
       check('mobile Home returns to title', await mobile.isVisible('#title'));
       await mobile.close();
     }

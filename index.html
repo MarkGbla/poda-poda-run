@@ -54,7 +54,7 @@
     </div>
   </div>
   <div id="radio" hidden>
-    <button id="pauseBtn" type="button" aria-label="Pause game" title="Pause game">Ⅱ</button>
+    <button id="pauseBtn" type="button" aria-label="Pause game" title="Pause game"><span class="pause-glyph" aria-hidden="true"><i></i><i></i></span></button>
     <button id="musicToggle" type="button" aria-label="Open music controls" aria-expanded="false" aria-controls="musicPlayer" title="Music controls"><svg viewBox="0 0 24 24" aria-hidden="true"><g fill="currentColor"><rect class="radio-bar" x="4" y="9" width="4" height="12" rx=".7"/><rect class="radio-bar" x="10" y="3" width="4" height="18" rx=".7"/><rect class="radio-bar" x="16" y="6" width="4" height="15" rx=".7"/></g></svg></button>
     <section id="musicPlayer" aria-label="Music player">
       <div class="music-info" aria-live="polite"><small id="musicStatus">PODA RADIO · AUDACITY</small><strong id="musicTitle">Go</strong><span id="musicArtist">Drizilik</span></div>
@@ -159,21 +159,27 @@
     <p id="previewStatus" role="status"></p>
     <div class="preview-actions"><button id="sharePoster" class="secondaryBtn" type="button">Share image</button><button id="downloadPoster" class="secondaryBtn" type="button">Save PNG</button><button id="closePreview" class="secondaryBtn" type="button">Back</button></div>
   </dialog>
-  <div id="pause" class="screen" hidden role="dialog" aria-modal="true" aria-labelledby="pauseTitle">
+  <div id="pause" class="screen" hidden role="dialog" aria-modal="true" aria-labelledby="pauseTitle" aria-describedby="pauseDescription">
     <div class="pause-card">
       <h1 id="pauseTitle">Paused</h1>
-      <div id="pauseGoals" class="pause-goals" aria-label="Your goals"></div>
-      <p id="pauseTripStats" class="pause-trip-stats"></p>
-      <nav class="pause-actions" aria-label="Pause menu">
-        <button id="homePause" type="button"><span aria-hidden="true">🏠</span>Home</button>
-        <button id="pauseMute" type="button"><span aria-hidden="true">🔊</span><b>Sound on</b></button>
-        <button id="pauseMusic" type="button"><span aria-hidden="true">♫</span>Your music</button>
-      </nav>
-      <button id="resumeBtn" class="game-primary" type="button">Continue</button>
-      <details class="pause-options"><summary>More options</summary><label for="qualityProfile">Graphics</label><select id="qualityProfile"><option value="auto">Automatic</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select><button class="secondaryBtn" id="restartBtn" type="button">Start again</button></details>
+      <h2>End this run?</h2>
+      <p id="pauseDescription" class="pause-description">Your score and coins are kept.</p>
+      <div class="pause-choices">
+        <button id="resumeBtn" type="button">Keep driving</button>
+        <button id="homePause" type="button">End run</button>
+      </div>
+      <details class="pause-options">
+        <summary>More options</summary>
+        <p id="pauseTripStats" class="pause-trip-stats"></p>
+        <div id="pauseGoals" class="pause-goals" aria-label="Your goals"></div>
+        <nav class="pause-actions" aria-label="Pause menu">
+          <button id="pauseMute" type="button"><span aria-hidden="true">🔊</span><b>Sound on</b></button>
+          <button id="pauseMusic" type="button"><span aria-hidden="true">♫</span>Your music</button>
+        </nav>
+        <label for="qualityProfile">Graphics</label><select id="qualityProfile"><option value="auto">Automatic</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select><button class="secondaryBtn" id="restartBtn" type="button">Start again</button>
+      </details>
     </div>
   </div>
-  <dialog id="leaveRun" class="leave-run" aria-labelledby="leaveRunTitle"><h2 id="leaveRunTitle">End this run?</h2><p>Your score and goals will be kept on this device.</p><button id="keepDriving" type="button">Stay here</button><button id="leaveConfirm" type="button">End run & go home</button></dialog>
   <dialog id="leaderboard" class="screen" aria-label="Leaderboard" hidden>
     <div class="plate">
       <div class="plate-top"><div class="eyebrow">Freetown drivers</div><h1>Leaderboard</h1></div>

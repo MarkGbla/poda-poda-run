@@ -1135,17 +1135,13 @@ $('pauseBtn').addEventListener('click', pauseRun);
 $('resumeBtn').addEventListener('click', resumeRun);
 $('restartBtn').addEventListener('click', startRun);
 $('homeResult').addEventListener('click', returnHome);
-$('homePause').addEventListener('click', () => $('leaveRun').showModal());
-$('keepDriving').addEventListener('click', () => $('leaveRun').close());
-$('leaveConfirm').addEventListener('click', () => {
-  $('leaveRun').close();
+$('homePause').addEventListener('click', () => {
   if (state !== 'paused') return;
   endRun(); returnHome();
 });
 $('pauseMute').addEventListener('click', toggleMute);
 $('pauseMusic').addEventListener('click', () => $('auxFile').click());
 $('pause').addEventListener('keydown', event => {
-  if ($('leaveRun').open) return;
   if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); resumeRun(); }
   if (event.key === 'Tab') {
     const buttons = [...$('pause').querySelectorAll('button, select, summary')].filter(el => el.getClientRects().length);
@@ -1589,7 +1585,6 @@ function startRun() {
   garageHidden = [];
   $('playerGarage').hidden = true;
   $('pause').hidden = true;
-  $('leaveRun').close();
   $('radio').inert = false;
   setMusicOpen(false);
   $('hud').inert = false;
@@ -1625,7 +1620,7 @@ function pauseRun() {
   events.emit('game:pause', {});
 }
 function resumeRun() {
-  if (state !== 'paused' || $('leaveRun').open) return;
+  if (state !== 'paused') return;
   ac?.resume();
   changeState('play'); clock.reset(); canvas.focus(); playMusic();
   $('pause').hidden = true; $('touch').hidden = false;
