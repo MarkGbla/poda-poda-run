@@ -870,6 +870,31 @@ function resetRun() {
   for (const b of boosts) world.remove(b.m);
   for (const d of debris) drop(d.g);
   if (stopObj) drop(stopObj.g);
+// Explicit local-only diagnostics. Normal players never create these objects.
+const trafficDebug = (() => {
+  if (!params.has('trafficDebug') || !['localhost','127.0.0.1'].includes(location.hostname)) return null;
+  const label=document.createElement('pre');
+  label.style.cssText='position:fixed;left:8px;top:8px;z-index:9999;margin:0;padding:10px;background:#07131ddd;color:#bfffe4;font:12px/1.4 monospace;pointer-events:none;white-space:pre';
+  document.body.append(label);
+  const material=new THREE.MeshBasicMaterial({color:0x00ff88,wireframe:true,depthTest:false,transparent:true,opacity:.85});
+  const boxes=[];
+  function box(index) {
+    if(!boxes[index]){boxes[index]=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),material);boxes[index].renderOrder=999;scene.add(boxes[index]);}
+    boxes[index].visible=true;return boxes[index];
+  }
+  return {objects:boxes,update(dt){
+    const playerBox=box(0);playerBox.position.set(S.x,1.1,0);playerBox.scale.set((S.vehicle?.width||2.1)-.3,2.2,(S.vehicle?.length||5.4)-.3);
+    let nearest=null, distance=Infinity;
+    for(let i=0;i<obstacles.length;i++){
+      const o=obstacles[i], mesh=box(i+1);
+      mesh.position.set(o.x,1.1,o.z);mesh.scale.set(o.wid-.3,2.2,o.len-.3);
+      const gap=Math.abs(o.z)-(o.len+(S.vehicle?.length||5.4))/2;
+      if(gap<distance){nearest=o;distance=gap;}
+    }
+    for(let i=obstacles.length+1;i<boxes.length;i++)boxes[i].visible=false;
+    label.textContent=`PLAYER SPEED ${S.speed.toFixed(1)} m/s\nNPC SPEED ${nearest?.speed.toFixed(1)??'—'} m/s\nRELATIVE ${(nearest?S.speed-nearest.speed:0).toFixed(1)} m/s\nDISTANCE ${nearest?distance.toFixed(1):'—'} m\nPLAYER LANE ${S.lane}\nNPC LANE ${nearest?.lane??'—'}\nFOLLOWING GAP ${nearest&&Number.isFinite(nearest.leaderGap)?nearest.leaderGap.toFixed(1):'—'} m\nDELTA ${(dt*1000).toFixed(1)} ms\nCOLLISION ${nearest?window.PODA_CollisionSystem.overlapsPlayer(S,nearest):false}`;
+  }};
+})();
   obstacles = []; coins = []; boosts = []; debris = []; stopObj = null;
   Object.assign(S, {
     vehicle: CONFIG.vehicles[vehicleId], jumpY:0, jumpVelocity:0, jumpCooldown:0, bump:0,
@@ -985,7 +1010,8 @@ function initCoins() {
   world.add(coinIM);
 }
 function coinFree(c) { _cm.makeScale(0, 0, 0); coinIM.setMatrixAt(c.slot, _cm); coinSlots.push(c.slot); }
-const LANE_SPEED = [10.5, 8, 5.5];
+// Metres per second. Keep lane character while preserving a readable closing rate.
+const LANE_SPEED = [22, 20, 18];
 const heading = o => (o.person ? (o.vx > 0 ? Math.PI / 2 : -Math.PI / 2) : (o.vx > 0 ? -Math.PI / 2 : Math.PI / 2));
 function spawnRow(z) {
   if (cbd && !cbd.canSpawnAt(z)) return;   // keep corners and the blind run after them clear
@@ -1006,8 +1032,8 @@ function spawnRow(z) {
     else if (r < 0.34) o = pooled('kekeh', makeKekeh);
     else if (r < 0.46) o = window.PODA_SendMe.config.enabled && Math.random() < window.PODA_SendMe.config.motorcycleShare ? pooled('sendme', makeSendMe) : pooled('okada', makeOkada);
     else if (r < 0.56) o = pooled('poda', makeTrafficPoda);
-    else if (r < 0.62) { o = lane === 2 ? pooled('kekeh', makeKekeh) : pooled('waka', makeWakaFine); speed = 4; }
-    else if (r < 0.70) { const type=pick(['box','flatbed','tipper','tanker','container','coach']), variant=randi(0,2); o=pooled(type+variant,()=>freight.make({type,variant})); speed=4; }
+    else if (r < 0.62) { o = lane === 2 ? pooled('kekeh', makeKekeh) : pooled('waka', makeWakaFine); speed = LANE_SPEED[lane] * .78; }
+    else if (r < 0.70) { const type=pick(['box','flatbed','tipper','tanker','container','coach']), variant=randi(0,2); o=pooled(type+variant,()=>freight.make({type,variant})); speed=LANE_SPEED[lane] * .7; }
     else if(r<.73) {const g=new THREE.Group();streetAssets.roadworks(g,0,0);o={g,wid:2.1,len:8,static:true};speed=0;}
     else if (r < 0.74) { o = makeGoat(); speed = 0; cross = 1; }
     else if (r < 0.84) { o = makeHawker(); speed = 0; cross = 1; }
@@ -1035,6 +1061,13 @@ function spawnRow(z) {
     add(m, G.cyl, 0x8a4b12, 0.42, 1.0, 0.42, 0, 0, 0);
     add(m, G.cyl, 0x8a4b12, 0.2, 0.4, 0.2, 0, 0.66, 0);
     add(m, G.cyl, 0xf6ecd6, 0.44, 0.35, 0.44, 0, 0.05, 0);
+    if (speed > 0) {
+      const paceRoll = Math.random();
+      const pace = paceRoll < .18 ? rand(.82,.93) : paceRoll < .78 ? rand(.96,1.06) : rand(1.07,1.15);
+      speed *= pace;
+      o.passSide = Math.random() < .5 ? -1 : 1;
+      o.passLead = rand(2.5,3.3);
+    }
     m.position.set(LANES[l], 1.2, z - 10); world.add(m); boosts.push({ m, x: LANES[l], z: z - 10 });
   }
 }
@@ -1978,7 +2011,7 @@ function loop(now) {
   if (state === 'attract' && aerial) renderTown();
   else if (cbd && state !== 'garage') {
     if (cbdView) { cbd.poseView(camera, cbdView); player.visible = contactShadow.visible = world.visible = false; }
-    else cbd.beforeRender({ camera, sun, player, extras: [contactShadow], coins: { mesh: coinIM, list: coins }, drawDistance: qualityManager.budget.distance });
+    else cbd.beforeRender({ camera, sun, player, extras: trafficDebug ? [contactShadow,...trafficDebug.objects] : [contactShadow], coins: { mesh: coinIM, list: coins }, drawDistance: qualityManager.budget.distance });
     renderer.render(scene, camera);
     if (!cbdView) cbd.afterRender({ camera, sun });
   } else renderer.render(scene, camera);
@@ -2014,6 +2047,7 @@ function update(dt) {
   if(window.PODA_JumpSystem.step(S,dt)){S.bump=.22;S.shake=reduceMotion?0:.15;sfx('thud');events.emit('jump:land',{});}
   S.bump=Math.max(0,S.bump-dt);
   // player
+  if (trafficDebug && S.vehicle) trafficDebug.update(dt);
   player.position.x = S.x;
   player.rotation.y = -(LANES[S.lane] - S.x) * 0.07;
   player.rotation.z = (LANES[S.lane] - S.x) * 0.025 + (S.speed > 1 ? Math.sin(S.time * 18) * 0.004 : 0);
@@ -2035,6 +2069,7 @@ function update(dt) {
     ch.position.z += d;
     if (ch.position.z - CH > 22) { ch.position.z -= NCH * CH; fillChunk(ch); }
   }
+  const previousPlayerX = S.x;
 
   // bus stops
   if (!stopObj && !isFinished() && S.toStop <= 205) spawnStop();
@@ -2091,11 +2126,14 @@ function update(dt) {
     S.nextRow = rand(30, 42) - 12 * prog;
   }
 
-  // obstacles
-  for (let i = obstacles.length - 1; i >= 0; i--) {
-    const o = obstacles[i];
-    if (o.poolKey === 'sendme') window.PODA_SendMe.step(o, obstacles, S, dt, cbd ? cbd.route.speedCap(cbd.s-o.z) : Infinity);
-    else window.PODA_TrafficAI.step(o,obstacles,S,dt,LANES);
+  // Front-to-back update gives each follower its leader's current position.
+  // Collision checks run after movement, so array order cannot change contact.
+  const trafficOrder = obstacles.slice().sort((a,b)=>a.z-b.z);
+  const previousPositions = new Map();
+  for (const o of trafficOrder) {
+    previousPositions.set(o,{x:o.x,z:o.z});
+    if (o.poolKey === 'sendme') window.PODA_SendMe.step(o, obstacles, S, dt, cbd ? cbd.route.speedCap(cbd.s-o.z) : Infinity, LANES);
+    else window.PODA_TrafficAI.step(o,obstacles,S,dt,LANES,Math.random,d);
     const despawn = window.PODA_TrafficSystem.stepTraffic(o, d, dt, LANES);
     if (o.poolKey === 'sendme') {
       const k = cbd ? cbd.route.path.frameAt(cbd.s-o.z, sendMeFrame).k : 0;
@@ -2107,9 +2145,13 @@ function update(dt) {
       if (o.person && PLUG.people && PLUG.people.walk) PLUG.people.walk(o.g, S.time * (o.flee ? 2.2 : 1));
     }
     o.g.position.set(o.x, 0, o.z);
-    if (despawn) { releaseObstacle(o); obstacles.splice(i, 1); continue; }
-    if (!isFinished() && window.PODA_CollisionSystem.overlapsPlayer(S, o)) {
-      if (state === 'attract' && !demo) { /* attract mode never crashes */ drop(o.g); obstacles.splice(i, 1); continue; }
+    if (despawn) { releaseObstacle(o); obstacles.splice(obstacles.indexOf(o), 1); continue; }
+  }
+  for (const o of trafficOrder) {
+    if (!obstacles.includes(o)) continue;
+    const previous = previousPositions.get(o);
+    if (!isFinished() && window.PODA_CollisionSystem.sweepsPlayer(S, o, previousPlayerX, previous.x, previous.z)) {
+      if (state === 'attract' && !demo) { /* attract mode never crashes */ drop(o.g); obstacles.splice(obstacles.indexOf(o), 1); continue; }
       hit(o);
     }
   }

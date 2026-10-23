@@ -2,7 +2,7 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 const {step,config}=require('../src/simulation/systems/SendMeController.js');
 const {stepTraffic}=require('../src/simulation/systems/TrafficSystem.js');
-const {overlapsPlayer}=require('../src/simulation/systems/CollisionSystem.js');
+const {overlapsPlayer,sweepsPlayer}=require('../src/simulation/systems/CollisionSystem.js');
 const rider=(z=0)=>({x:-3.4,z,speed:10,cruise:10,wid:.85,len:2.05,lane:0});
 const run={x:3.4,speed:0};
 test('riders stop behind stationary traffic without overlap at variable frame steps',()=>{
@@ -32,4 +32,18 @@ test('motorcycle bounds retain established collision and despawn rules',()=>{
  const o=rider();assert.equal(overlapsPlayer({x:0,speed:15},o),false);
  o.x=0;assert.equal(overlapsPlayer({x:0,speed:15},o),true);
  o.z=26;assert.equal(stepTraffic(o,0,0,[-3.4,0,3.4]),true);
+});
+test('rider behind a stopped player passes in an open lane without contact',()=>{
+ const player={x:-3.4,lane:0,speed:0,vehicle:{width:2.1,length:5.4}};
+ const o=rider(35),lanes=[-3.4,0,3.4];let contact=false;
+ for(let i=0;i<60*7;i++){
+  const old={x:o.x,z:o.z};
+  step(o,[o],player,1/60,Infinity,lanes);
+  stepTraffic(o,0,1/60,lanes);
+  contact ||= sweepsPlayer(player,o,player.x,old.x,old.z);
+ }
+ assert.equal(contact,false);
+ assert.equal(o.lane,1);
+ assert.ok(o.z<0);
+ assert.ok(o.speed>5);
 });
