@@ -25,8 +25,8 @@ import { createFreightFactory } from './assets/vehicles/freight.js';
 import { TrafficPool } from './assets/vehicles/trafficPool.js';
 import { createStreetAssets } from './assets/roads/streetAssets.js';
 import { createCbdMode } from './cbd/CbdMode.js';
-import { EnvironmentManager, ENVIRONMENT } from './rendering/EnvironmentManager.js';
-import { attachVehicleLights } from './rendering/VehicleLights.js';
+import { EnvironmentManager } from './rendering/EnvironmentManager.js';
+import { attachVehicleLights, NPC_BEAM_DISTANCE } from './rendering/VehicleLights.js';
 import { createStreetLights } from './rendering/StreetLights.js';
 import '../vehicles.js';
 import '../districts-west.js';
@@ -673,7 +673,7 @@ function buildStatic() {
   staticRoot.add(cloudG); bake(cloudG);
   for (const m of cloudG.children) {
     m.material = new THREE.MeshLambertMaterial({ vertexColors: true, emissive: 0xa8b6bc, fog: false });
-    environment.subscribe(p => { m.material.emissive.setHex(p.vehicles > .5 ? 0x111d30 : 0xa8b6bc); m.material.color.setHex(p.vehicles > .5 ? 0x51617b : 0xffffff); });
+    environment.subscribe(p => { m.material.emissive.setHex(0xa8b6bc).lerp(new THREE.Color(0x111d30),p.backdrop); m.material.color.setHex(0xffffff).lerp(new THREE.Color(0x51617b),p.backdrop); });
   }
 
   // hillside slopes, one pair per chunk
@@ -832,6 +832,7 @@ function bake(root, cast = false) {
 }
 function drop(obj) {
   world.remove(obj);
+  obj.userData.vehicleLights?.dispose();
   for(const texture of obj.userData.ownedTextures||[])texture.dispose();
   obj.traverse(m => { if (m.userData.baked) m.geometry.dispose(); });
 }
@@ -929,7 +930,6 @@ function resetRun() {
     style: 0, fastTime: 0, multiplier: 1,
     reversing: false, reverseSpeed: RULES.REVERSE_SPEED, condition: RULES.CONDITION,
   });
-  S.previousLightSpeed = S.speed;
   // Buses start half-full; the motorcycle starts ready for its first pickup.
   if (cbd) { cbd.reset(); S.toStop = S.legLen = cbd.distanceToStop(1); }
   for (let i = 0; i < (vehicleId === 'okada' ? 0 : Math.ceil(CAP / 2)); i++) S.pax.push(randi(0, 2));
@@ -1076,6 +1076,7 @@ function spawnRow(z) {
       o.vx = dir * rand(0.9, 1.5); o.crossVelocity=o.vx; o.x = LANES[lane] - dir * 2.2; o.cross = true;
       o.g.rotation.y = heading(o);
     } else if (!o.poolKey && !o.flat && !o.person) bake(o.g, true);
+    if (o.static || o.person || o.cross) environment.addReadableObject(o.g);
     o.g.position.set(o.x, 0, z);
     world.add(o.g); obstacles.push(o); placed++;
   }
@@ -1650,7 +1651,7 @@ function startRun() {
   if (workshop) workshop.visible = false;
   world.visible = true;
   CAP=CONFIG.vehicles[vehicleId].capacity; DATA.route=routeStops(); buildPlayer();
-  // Fixed for the whole run, independent of local time.
+  // Fixed for the whole run; saved choice is explicit and independent of local time.
   environment.setState($('environmentSelect').value === 'NIGHT' ? 'NIGHT' : 'DAY');
   resetRun();
   for(const ch of chunks) fillChunk(ch);
@@ -2036,14 +2037,19 @@ function loop(now) {
     }else update(dt);
   }
   if(state==='garage') poseGarageCamera();
-  const preset = ENVIRONMENT[environment.state];
-  const playerBrake = input.brake || S.dwell > 0 || (S.previousLightSpeed ?? S.speed) - S.speed > .08;
-  player?.userData.vehicleLights?.update(preset, playerBrake, qualityManager.profile);
-  S.previousLightSpeed = S.speed;
+  const preset = environment.current;
+  const lightingDt = state === 'paused' ? 0 : dt;
+  const playerBrake = input.brake || input.brakePulse > 0 || S.dwell > 0;
+  player?.userData.vehicleLights?.update(preset, playerBrake, qualityManager.profile, 0, lightingDt, S.speed);
+  let npcBeams = 0;
   for (const o of obstacles) {
-    o.g.userData.vehicleLights?.update(preset, !!o.braking, qualityManager.profile, Math.abs(o.z));
-    if (o.g.userData.nightRim) o.g.userData.nightRim.visible = environment.isNight;
+    const lights = o.g.userData.vehicleLights, distance = Math.abs(o.z);
+    const projected = npcBeams < 2 && distance < NPC_BEAM_DISTANCE;
+    lights?.update(preset, !!o.braking, qualityManager.profile, distance, lightingDt, o.speed, projected);
+    if (lights?.plane.visible) npcBeams++;
+    if (o.g.userData.nightRim) { o.g.userData.nightRim.visible = preset.backdrop > .001; o.g.userData.nightRim.material.opacity = .45*preset.backdrop; }
   }
+  environment.positionLight();
   musicTick(dt);
   engineTick();
   for(const ch of chunks){
@@ -2056,7 +2062,7 @@ function loop(now) {
   if (state === 'attract' && aerial) renderTown();
   else if (cbd && state !== 'garage') {
     if (cbdView) { cbd.poseView(camera, cbdView); player.visible = contactShadow.visible = world.visible = false; }
-    else cbd.beforeRender({ camera, sun, player, extras: trafficDebug ? [contactShadow,...trafficDebug.objects] : [contactShadow], coins: { mesh: coinIM, list: coins }, drawDistance: qualityManager.budget.distance });
+    else cbd.beforeRender({ camera, sun, player, extras: trafficDebug ? [contactShadow,...trafficDebug.objects] : [contactShadow], lightOffset: environment.current.sunOffset, coins: { mesh: coinIM, list: coins }, drawDistance: qualityManager.budget.distance });
     renderer.render(scene, camera);
     if (!cbdView) cbd.afterRender({ camera, sun });
   } else renderer.render(scene, camera);
@@ -2251,20 +2257,23 @@ function setupBenchmark() {
   player.position.set(0,0,0);player.rotation.set(0,0,0);
   contactShadow.position.x=0;
   const fixtures=[[makeWakaFine,-3.4,-23,'waka'],[makeKekeh,3.4,-18,'kekeh'],[makeKekeh,-3.4,-45,'kekeh'],[makeCar,0,-38,'taxi'],[()=>freight.make({type:'flatbed'}),3.4,-57,'freight']];
-  for(const [factory,x,z,kind] of fixtures){const o=pooled('benchmark'+x+z,factory);attachVehicleLights(o.g,kind,{length:o.len});o.g.position.set(x,0,z);world.add(o.g);obstacles.push(o);}
-  for(let i=0;i<5;i++){const o=pooled('pothole'+i,()=>streetAssets.pothole(i));o.g.position.set(i%2?-2.2:2.3,0,-9-i*10);world.add(o.g);obstacles.push(o);}
+  for(const [factory,x,z,kind] of fixtures){const o=pooled('benchmark'+x+z,factory);attachVehicleLights(o.g,kind,{length:o.len});o.x=x;o.z=z;o.g.position.set(x,0,z);world.add(o.g);obstacles.push(o);}
+  for(let i=0;i<5;i++){const o=pooled('pothole'+i,()=>streetAssets.pothole(i));o.x=i%2?-2.2:2.3;o.z=-9-i*10;o.g.position.set(o.x,0,o.z);world.add(o.g);obstacles.push(o);}
   camera.position.set(2,4.5,13.5);camera.lookAt(0,1.5,-16);cameraSystem.lookX=0;
   sun.position.set(-28,32,20);sun.target.position.set(0,0,-12);
   $('title').hidden=true;$('hud').hidden=false;$('touch').hidden=false;$('radio').hidden=false;
   updateHud();
 }
 let metricSeconds=0,metricFrames=0;
+const metricMaterials = new Set();
 function sampleMetrics(raw) {
   metricSeconds+=raw;metricFrames++;
   if(metricSeconds>=1){
-    let objects=0, dynamicLights=0, shadowLights=0;
-    scene.traverse(o => { if (!o.visible) return; objects++; if (o.isLight && o.intensity > 0) { dynamicLights++; if (o.castShadow) shadowLights++; } });
-    const m={fps:Math.round(metricFrames/metricSeconds),frameMs:1000*metricSeconds/metricFrames,calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,geometries:renderer.info.memory.geometries,textures:renderer.info.memory.textures,ratio:qualityManager.ratio,objects,dynamicLights,shadowLights,environment:environment.state};
+    let objects=0, visibleObjects=0, dynamicLights=0, shadowLights=0;
+    metricMaterials.clear();
+    scene.traverse(o => { objects++; if(o.material) { if(Array.isArray(o.material)) o.material.forEach(m=>metricMaterials.add(m)); else metricMaterials.add(o.material); } });
+    scene.traverseVisible(o => { visibleObjects++; if (o.isLight && o.intensity > 0) { dynamicLights++; if (o.castShadow) shadowLights++; } });
+    const m={fps:Math.round(metricFrames/metricSeconds),frameMs:1000*metricSeconds/metricFrames,calls:renderer.info.render.calls,triangles:renderer.info.render.triangles,geometries:renderer.info.memory.geometries,textures:renderer.info.memory.textures,ratio:qualityManager.ratio,objects,visibleObjects,materials:metricMaterials.size,dynamicLights,shadowLights,environment:environment.state};
     PLUG.debug.metrics=m;
     if(params.has('stats')){let el=$('renderStats');if(!el){el=document.createElement('output');el.id='renderStats';document.body.appendChild(el);}el.textContent=`${m.fps} FPS · ${m.calls} draws · ${Math.round(m.triangles/1000)}k triangles · DPR ${m.ratio.toFixed(2)}`;}
     metricSeconds=metricFrames=0;
@@ -2328,10 +2337,12 @@ function setupCbdLighting(mode) {
   environment.addRoad(mode.materials.road);
   environment.addWindows(mode.materials.win);
   environment.addWindows(mode.materials.shop);
+  environment.addBuildings(mode.materials.vc);
   environment.addBackdrop(mode.panorama.material, 0xffffff, 0x3f4a62);
   streetLighting = createStreetLights(mode.lampPositions);
   mode.group.add(streetLighting.group);
-  environment.subscribe(p => streetLighting.set(p.streetlights));
+  const lighting = streetLighting;
+  environment.subscribe(p => lighting.set(p.streetlights));
 }
 addEventListener('resize', resize);
 
@@ -2384,7 +2395,7 @@ fontsReady.catch(() => {}).then(() => {
     selectionDetails();
     updateTitleRoute();
   }
-  // Chunk lights recycle with their scenery.
+  // Chunk lights are attached individually so they recycle with their scenery.
   for (const ch of chunks) {
     const lights = createStreetLights([-1,1].map(side => ({ x:side*(ROAD_HALF+1.2), z:-CH/2 })));
     ch.add(lights.group);
@@ -2403,6 +2414,7 @@ fontsReady.catch(() => {}).then(() => {
   });
   contactShadow = new THREE.Mesh(new THREE.PlaneGeometry(3.5, 7.3), new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false, opacity: .6 }));
   contactShadow.rotation.x = -Math.PI / 2; contactShadow.position.set(LANES[2], .018, 0); scene.add(contactShadow);
+  environment.subscribe(p => { contactShadow.material.opacity = p.shadowOpacity; });
   resetRun();
   camera.position.set(S.x + 2, 4.5, 13.5);
   cameraSystem.lookX = S.x;

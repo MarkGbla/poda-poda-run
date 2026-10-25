@@ -1,0 +1,353 @@
+{
+  "before": [
+    {
+      "mode": "DAY",
+      "viewport": {
+        "width": 1280,
+        "height": 720
+      },
+      "quality": "auto",
+      "route": "western",
+      "result": {
+        "state": "play",
+        "metrics": {
+          "fps": 60,
+          "frameMs": 16.666666666666675,
+          "calls": 172,
+          "triangles": 127120,
+          "geometries": 120,
+          "textures": 28,
+          "ratio": 1,
+          "objects": 694,
+          "dynamicLights": 2,
+          "shadowLights": 1,
+          "environment": "DAY"
+        },
+        "playerLight": true,
+        "playerSpot": false,
+        "streetLights": [
+          false,
+          false
+        ]
+      },
+      "errors": []
+    },
+    {
+      "mode": "NIGHT",
+      "viewport": {
+        "width": 1280,
+        "height": 720
+      },
+      "quality": "auto",
+      "route": "western",
+      "result": {
+        "state": "play",
+        "metrics": {
+          "fps": 60,
+          "frameMs": 16.666666666666675,
+          "calls": 218,
+          "triangles": 124748,
+          "geometries": 130,
+          "textures": 30,
+          "ratio": 1,
+          "objects": 734,
+          "dynamicLights": 3,
+          "shadowLights": 1,
+          "environment": "NIGHT"
+        },
+        "playerLight": true,
+        "playerSpot": true,
+        "streetLights": [
+          true,
+          true
+        ]
+      },
+      "errors": []
+    }
+  ],
+  "browser_checks": [
+    {
+      "mode": "DAY",
+      "viewport": {
+        "width": 1280,
+        "height": 720
+      },
+      "quality": "auto",
+      "route": "western",
+      "result": {
+        "state": "play",
+        "metrics": {
+          "fps": 47,
+          "frameMs": 21.179166666666685,
+          "calls": 177,
+          "triangles": 125818,
+          "geometries": 120,
+          "textures": 28,
+          "ratio": 1,
+          "objects": 742,
+          "visibleObjects": 702,
+          "materials": 60,
+          "dynamicLights": 2,
+          "shadowLights": 1,
+          "environment": "DAY"
+        },
+        "playerLight": true,
+        "playerSpot": false,
+        "streetLights": [
+          false,
+          false
+        ]
+      },
+      "errors": []
+    },
+    {
+      "mode": "NIGHT",
+      "viewport": {
+        "width": 1280,
+        "height": 720
+      },
+      "quality": "auto",
+      "route": "western",
+      "result": {
+        "state": "play",
+        "metrics": {
+          "fps": 47,
+          "frameMs": 21.27659574468086,
+          "calls": 210,
+          "triangles": 127426,
+          "geometries": 138,
+          "textures": 30,
+          "ratio": 1,
+          "objects": 739,
+          "visibleObjects": 734,
+          "materials": 59,
+          "dynamicLights": 3,
+          "shadowLights": 1,
+          "environment": "NIGHT"
+        },
+        "playerLight": true,
+        "playerSpot": true,
+        "streetLights": [
+          true,
+          true
+        ]
+      },
+      "errors": []
+    },
+    {
+      "mode": "NIGHT",
+      "viewport": {
+        "width": 412,
+        "height": 860
+      },
+      "quality": "auto",
+      "route": "western",
+      "result": {
+        "state": "play",
+        "metrics": {
+          "fps": 60,
+          "frameMs": 16.66557377049181,
+          "calls": 206,
+          "triangles": 125920,
+          "geometries": 137,
+          "textures": 30,
+          "ratio": 1,
+          "objects": 728,
+          "visibleObjects": 723,
+          "materials": 58,
+          "dynamicLights": 3,
+          "shadowLights": 1,
+          "environment": "NIGHT"
+        },
+        "playerLight": true,
+        "playerSpot": true,
+        "streetLights": [
+          true,
+          true
+        ]
+      },
+      "errors": []
+    },
+    {
+      "mode": "NIGHT",
+      "viewport": {
+        "width": 860,
+        "height": 412
+      },
+      "quality": "auto",
+      "route": "western",
+      "result": {
+        "state": "play",
+        "metrics": {
+          "fps": 60,
+          "frameMs": 16.666666666666675,
+          "calls": 209,
+          "triangles": 125338,
+          "geometries": 138,
+          "textures": 30,
+          "ratio": 1,
+          "objects": 730,
+          "visibleObjects": 725,
+          "materials": 60,
+          "dynamicLights": 3,
+          "shadowLights": 1,
+          "environment": "NIGHT"
+        },
+        "playerLight": true,
+        "playerSpot": true,
+        "streetLights": [
+          true,
+          true
+        ]
+      },
+      "errors": []
+    },
+    {
+      "mode": "NIGHT",
+      "viewport": {
+        "width": 412,
+        "height": 860
+      },
+      "quality": "low",
+      "route": "western",
+      "result": {
+        "state": "play",
+        "metrics": {
+          "fps": 60,
+          "frameMs": 16.663934426229517,
+          "calls": 145,
+          "triangles": 77417,
+          "geometries": 106,
+          "textures": 29,
+          "ratio": 0.8,
+          "objects": 730,
+          "visibleObjects": 432,
+          "materials": 58,
+          "dynamicLights": 2,
+          "shadowLights": 0,
+          "environment": "NIGHT"
+        },
+        "playerLight": true,
+        "playerSpot": false,
+        "streetLights": [
+          true,
+          true
+        ]
+      },
+      "errors": []
+    },
+    {
+      "mode": "NIGHT",
+      "viewport": {
+        "width": 1280,
+        "height": 720
+      },
+      "quality": "auto",
+      "route": "central",
+      "result": {
+        "state": "play",
+        "metrics": {
+          "fps": 59,
+          "frameMs": 16.943333333333346,
+          "calls": 75,
+          "triangles": 100291,
+          "geometries": 71,
+          "textures": 28,
+          "ratio": 1,
+          "objects": 1269,
+          "visibleObjects": 256,
+          "materials": 66,
+          "dynamicLights": 3,
+          "shadowLights": 1,
+          "environment": "NIGHT"
+        },
+        "playerLight": true,
+        "playerSpot": true,
+        "streetLights": [
+          true,
+          true
+        ],
+        "cbdStreet": [
+          true,
+          true
+        ]
+      },
+      "errors": []
+    },
+    {
+      "flow": "night braking, pause, orientation, resume, return home, day restart",
+      "passed": true,
+      "errors": []
+    }
+  ],
+  "isolated_performance": [
+    {
+      "mode": "DAY",
+      "viewport": {
+        "width": 1280,
+        "height": 720
+      },
+      "quality": "auto",
+      "route": "western",
+      "result": {
+        "state": "play",
+        "metrics": {
+          "fps": 59,
+          "frameMs": 16.94333333333334,
+          "calls": 170,
+          "triangles": 124006,
+          "geometries": 119,
+          "textures": 28,
+          "ratio": 1,
+          "objects": 724,
+          "visibleObjects": 684,
+          "materials": 57,
+          "dynamicLights": 2,
+          "shadowLights": 1,
+          "environment": "DAY"
+        },
+        "playerLight": true,
+        "playerSpot": false,
+        "streetLights": [
+          false,
+          false
+        ]
+      },
+      "errors": []
+    },
+    {
+      "mode": "NIGHT",
+      "viewport": {
+        "width": 1280,
+        "height": 720
+      },
+      "quality": "auto",
+      "route": "western",
+      "result": {
+        "state": "play",
+        "metrics": {
+          "fps": 60,
+          "frameMs": 16.665573770491818,
+          "calls": 205,
+          "triangles": 127090,
+          "geometries": 137,
+          "textures": 30,
+          "ratio": 1,
+          "objects": 733,
+          "visibleObjects": 728,
+          "materials": 57,
+          "dynamicLights": 3,
+          "shadowLights": 1,
+          "environment": "NIGHT"
+        },
+        "playerLight": true,
+        "playerSpot": true,
+        "streetLights": [
+          true,
+          true
+        ]
+      },
+      "errors": []
+    }
+  ]
+}

@@ -8,6 +8,8 @@ export class TrafficPool {
     if(visual.g.userData.sendme) for(const name of ['lean','frontFork','frontWheel','rearWheel']) visual.g.getObjectByName(name).rotation.set(0,0,0);
     if(visual.g.userData.sendme) visual.g.getObjectByName('brakeLight').scale.y=.07;
     visual.g.visible=true;visual.g.rotation.set(0,0,0);visual.g.scale.set(1,1,1);
+    visual.g.userData.vehicleLights?.reset();
+    if(visual.g.userData.nightRim)visual.g.userData.nightRim.visible=false;
     return {...visual,poolKey:key};
   }
   release(o) {

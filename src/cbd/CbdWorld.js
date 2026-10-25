@@ -408,7 +408,7 @@ export function createCbdWorld({ THREE, kit, data, route, textures: baseTex, bak
     const arm = path.toWorld(s, side * (RH - 0.4), {});
     B.box('vc', (f.x + arm.x) / 2, 6.95, (f.z + arm.z) / 2, 0.1, 0.1, 1.4, f.heading + Math.PI / 2, 0x6f7377);
     B.box('vc', arm.x, 6.85, arm.z, 0.5, 0.16, 0.28, f.heading, 0xe9e5cf);
-    lampPositions.push({ x: arm.x, z: arm.z });
+    lampPositions.push({ x: arm.x, z: arm.z, heading: f.heading });
   };
   const turns = route.turns;
   const nearTurn = s => turns.some(t => path.closed ? path.wrap(s - t.sStart + 20) < t.sEnd - t.sStart + 40 : s >= t.sStart - 20 && s <= t.sEnd + 40);

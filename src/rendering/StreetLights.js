@@ -24,10 +24,16 @@ export function createStreetLights(positions) {
   const pools = new THREE.InstancedMesh(a.poolGeometry, a.poolMaterial, positions.length);
   const matrix = new THREE.Matrix4();
   positions.forEach((p,i) => {
-    matrix.makeTranslation(p.x,6.85,p.z); head.setMatrixAt(i,matrix);
-    matrix.makeTranslation(p.x,.035,p.z); pools.setMatrixAt(i,matrix);
+    matrix.makeRotationY(p.heading || 0); matrix.setPosition(p.x,6.85,p.z); head.setMatrixAt(i,matrix);
+    matrix.setPosition(p.x,.035,p.z); pools.setMatrixAt(i,matrix);
   });
   head.instanceMatrix.needsUpdate = pools.instanceMatrix.needsUpdate = true;
   group.add(head,pools);
-  return { group, set(level) { head.visible = pools.visible = level > .5; } };
+  // r128 InstancedMesh deliberately disables frustum culling; a base-geometry
+  // sphere would incorrectly cull lamps spread across the mapped city.
+  return { group, set(level) {
+    head.visible = pools.visible = level > .001;
+    a.poolMaterial.opacity = level;
+    a.headMaterial.color.setHex(0xffdda0).multiplyScalar(level);
+  }, dispose() { group.parent?.remove(group); head.dispose(); pools.dispose(); group.clear(); } };
 }

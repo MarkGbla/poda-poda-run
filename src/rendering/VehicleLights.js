@@ -1,6 +1,10 @@
 import * as THREE from 'three';
+import { BufferGeometryUtils } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
-const geometry = new THREE.BoxGeometry(1, 1, 1);
+const shapes = new Map();
+let beamMaterial, lastLevel = -1;
+const dimHead = new THREE.Color(0xc9cbc7), brightHead = new THREE.Color(0xfff5cc);
+const dimTail = new THREE.Color(0x872522), brightTail = new THREE.Color(0xda3630);
 const lampOff = new THREE.MeshBasicMaterial({ color: 0xc9cbc7 });
 const lampOn = new THREE.MeshBasicMaterial({ color: 0xfff5cc });
 const tailOff = new THREE.MeshBasicMaterial({ color: 0x872522 });
@@ -26,17 +30,44 @@ const sizes = {
   waka: { half: .75, front: -2.5, rear: 2.5, headY: .9, tailY: .9, lampW: .35, tailH: .2, beam: 20 },
   freight: { half: .88, front: -4, rear: 4, headY: 1.45, tailY: .95, lampW: .32, tailH: .2, beam: 22 },
 };
+// The 24 m high-quality projection range covers roughly 1–2 seconds at normal
+// NPC speed. Essential emissive lamps remain visible to the quality draw distance.
+export const NPC_BEAM_DISTANCE = 24;
+export function createBrakeSignal() {
+  let previous, hold = 0;
+  return {
+    reset() { previous = undefined; hold = 0; },
+    update(commanded, speed, dt) {
+      if (dt <= 0) return hold > 0;
+      const slowing = Number.isFinite(previous) && Number.isFinite(speed) && (Math.abs(previous)-Math.abs(speed))/dt > 1.5;
+      if (commanded || slowing) hold = .12;
+      else hold = Math.max(0, hold-dt);
+      previous = speed;
+      return hold > 0;
+    },
+  };
+}
+function lightGeometry(s, key) {
+  if (shapes.has(key)) return shapes.get(key);
+  const xs = s.half ? [-s.half,s.half] : [0];
+  const combine = (tail) => {
+    const parts = xs.map(x => new THREE.BoxGeometry(tail ? s.lampW*.65 : s.lampW, tail ? s.tailH : .17, .035)
+      .translate(x, tail ? s.tailY : s.headY, tail ? s.rear+.045 : s.front-.045));
+    const merged = BufferGeometryUtils.mergeBufferGeometries(parts); parts.forEach(part => part.dispose());
+    return merged;
+  };
+  const value = { head:combine(false), tail:combine(true), beam:new THREE.PlaneGeometry(Math.max(3.4,s.beam*.35),s.beam) };
+  shapes.set(key,value); return value;
+}
 export function attachVehicleLights(group, kind, { player = false, length = null } = {}) {
   if (group.userData.vehicleLights) return group.userData.vehicleLights;
   const s = kind === 'freight' && length ? { ...sizes.freight, front:-length/2, rear:length/2 } : sizes[kind] || sizes.taxi;
-  const root = new THREE.Group(); root.name = 'vehicleLighting'; group.add(root);
-  const head = [], tail = [];
-  for (const x of s.half ? [-s.half,s.half] : [0]) {
-    const h = new THREE.Mesh(geometry, lampOff);
-    h.scale.set(s.lampW, .17, .035); h.position.set(x, s.headY, s.front - .045); root.add(h); head.push(h);
-    const t = new THREE.Mesh(geometry, tailOff);
-    t.scale.set(s.lampW * .65, s.tailH, .035); t.position.set(x, s.tailY, s.rear + .045); root.add(t); tail.push(t);
-  }
+  const geometry = lightGeometry(s, kind === 'freight' ? kind+length : kind);
+  const root = new THREE.Group(); root.name = 'vehicleLighting';
+  // SENDME lamps follow its existing lean pivot, leaving the model/branding intact.
+  (group.getObjectByName('lean') || group).add(root);
+  const head = [new THREE.Mesh(geometry.head, lampOff)], tail = [new THREE.Mesh(geometry.tail, tailOff)];
+  root.add(...head,...tail);
   let spot = null;
   if (player) {
     spot = new THREE.SpotLight(0xffedc5, 1.6, s.beam + 5, Math.PI / 7, .72, 1.1);
@@ -44,15 +75,34 @@ export function attachVehicleLights(group, kind, { player = false, length = null
     spot.target.position.set(0, .1, s.front - s.beam);
     spot.castShadow = false; root.add(spot, spot.target);
   }
-  const plane = new THREE.Mesh(new THREE.PlaneGeometry(Math.max(3.4, s.beam * .35), s.beam), new THREE.MeshBasicMaterial({ map: beamTexture(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: .8, polygonOffset: true, polygonOffsetFactor: -1 }));
-  plane.rotation.x = -Math.PI / 2; plane.position.set(0, .04, s.front - s.beam * .47); root.add(plane);
-  const lights = { root, spot, plane, head, tail, player, update(preset, braking, quality, distance = 0) {
-    const on = preset.vehicles > .5;
-    for (const mesh of head) { mesh.material = on ? lampOn : lampOff; mesh.visible = on; }
-    for (const mesh of tail) { mesh.material = braking ? brakeOn : on ? tailOn : tailOff; mesh.visible = on || braking; }
-    plane.visible = on && (player || quality === 'high' && distance < 24);
-    if (spot) spot.visible = on && quality !== 'low';
-  }, dispose() { plane.geometry.dispose(); plane.material.dispose(); }};
-  group.userData.vehicleLights = lights;
+  beamMaterial ||= new THREE.MeshBasicMaterial({ map:beamTexture(), transparent:true, depthWrite:false, blending:THREE.AdditiveBlending, opacity:.8, polygonOffset:true, polygonOffsetFactor:-1 });
+  const plane = new THREE.Mesh(geometry.beam, beamMaterial);
+  plane.rotation.x = -Math.PI / 2; plane.position.set(0, .04, s.front-s.beam*.5); root.add(plane);
+  const brake = createBrakeSignal();
+  let disposed = false;
+  const lights = { root, spot, plane, head, tail, player,
+    reset() { brake.reset(); for (const mesh of [...head,...tail,plane]) mesh.visible=false; if (spot) spot.visible=false; },
+    update(preset, braking, quality, distance = 0, dt = 1/60, speed, projected = true) {
+      if (disposed) return;
+      const level = preset.vehicles;
+      if (lastLevel !== level) {
+        lastLevel = level; lampOn.color.lerpColors(dimHead,brightHead,level);
+        tailOn.color.lerpColors(dimTail,brightTail,level); beamMaterial.opacity = .8*level;
+      }
+      const on = level > .001, brakingNow = brake.update(braking,speed,dt);
+      const visible = player || distance < (quality === 'low' ? 110 : quality === 'medium' ? 165 : 220);
+      for (const mesh of head) { mesh.material=lampOn; mesh.visible=visible && on; }
+      for (const mesh of tail) { mesh.material=brakingNow ? brakeOn : tailOn; mesh.visible=visible && (on || brakingNow); }
+      plane.visible = on && (player || projected && quality === 'high' && distance < NPC_BEAM_DISTANCE);
+      if (spot) { spot.visible=on && quality !== 'low'; spot.intensity=1.6*level; }
+    },
+    dispose() {
+      if (disposed) return;
+      lights.reset(); root.parent?.remove(root); root.clear();
+      delete group.userData.vehicleLights; disposed = true;
+      // Geometry, texture and materials are shared for the application lifetime.
+    },
+  };
+  group.userData.vehicleLights = lights; lights.reset();
   return lights;
 }

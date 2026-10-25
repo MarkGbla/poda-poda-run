@@ -69,7 +69,7 @@ export function createCbdMode({ THREE, kit, scene, world, textures, bake }) {
       return `TURN ${t.direction.toUpperCase()} ONTO ${t.onto.toUpperCase()} · ${m} m`;
     },
     /** Put road-space objects onto the real street. Pair every call with afterRender(). */
-    beforeRender({ camera, sun, player, extras = [], coins = null, drawDistance = Infinity }) {
+    beforeRender({ camera, sun, player, extras = [], coins = null, drawDistance = Infinity, lightOffset = [-24,32,26] }) {
       if (mapped) return;
       mapped = true;
       saved.length = 0;
@@ -94,7 +94,7 @@ export function createCbdMode({ THREE, kit, scene, world, textures, bake }) {
       // The sun stays fixed in the sky; only its shadow box follows the vehicle.
       sunSave.p.copy(sun.position); sunSave.t.copy(sun.target.position);
       path.toWorld(s - 10, 0, f); sun.target.position.set(f.x, 0, f.z);
-      sun.position.copy(sun.target.position).add(_p.set(-24, 32, 26));
+      sun.position.copy(sun.target.position).add(_p.set(...lightOffset));
       panorama.position.set(camera.position.x, 0, camera.position.z);
       // Honour the quality profile's draw distance (fog hides the cut): whole tiles, by bounding sphere.
       for (const mesh of tiles) {

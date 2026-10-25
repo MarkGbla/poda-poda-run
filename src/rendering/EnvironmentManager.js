@@ -8,45 +8,98 @@ export const ENVIRONMENT = {
   SUNRISE: { sky: ['#263953','#ad8e86','#d4baa0','#aca9a0'], fog: 0xa5a7ab, hemiSky: 0xb1b9cd, hemiGround: 0x665b58, ambient: .5, sun: 0xffd2a7, sunPower: .8, exposure: 1, road: 0xe1e2e8, streetlights: .3, vehicles: .4, windows: .05 },
 };
 
+// Visual-only controls. Fog distance remains owned by QualityManager.
+for (const [name, preset] of Object.entries(ENVIRONMENT)) {
+  const night = { DAY:0, SUNSET:.45, NIGHT:1, SUNRISE:.3 }[name];
+  Object.assign(preset, {
+    backdrop: night, roadRoughness: .9, buildingTint: name === 'NIGHT' ? 0xb4bed2 : 0xffffff,
+    hazardEmission: .035 * night, shadowOpacity: .6 - .25 * night,
+    sunOffset: name === 'NIGHT' ? [-18, 38, 24] : [-28, 32, 32],
+  });
+}
+const colorFields = ['fog','hemiSky','hemiGround','sun','road','buildingTint'];
+const scalarFields = ['ambient','sunPower','exposure','streetlights','vehicles','windows','backdrop','roadRoughness','hazardEmission','shadowOpacity'];
+
 export class EnvironmentManager {
   constructor({ renderer, scene, hemi, sun, quality }) {
     Object.assign(this, { renderer, scene, hemi, sun, quality });
-    this.state = 'DAY'; this.listeners = new Set(); this.roads = new Set(); this.windows = new Set(); this.backdrops = new Set();
+    this.state = 'DAY';
+    this.listeners = new Set(); this.roads = new Set(); this.windows = new Set();
+    this.backdrops = new Set(); this.buildings = new Set(); this.readable = new Map();
+    this.current = { sky: new Array(4), sunOffset: [0,0,0] };
+    this.color = new THREE.Color(); this.otherColor = new THREE.Color();
+    this.canvas = document.createElement('canvas'); this.canvas.width = 4; this.canvas.height = 256;
+    this.sky = new THREE.CanvasTexture(this.canvas); this.sky.encoding = THREE.sRGBEncoding;
     this.previousSky = scene.background;
-    this.sky = new Map();
-    for (const [key, preset] of Object.entries(ENVIRONMENT)) {
-      const canvas = document.createElement('canvas'); canvas.width = 4; canvas.height = 256;
-      const g = canvas.getContext('2d'), gradient = g.createLinearGradient(0, 0, 0, 256);
-      preset.sky.forEach((color, i) => gradient.addColorStop([0,.4,.63,1][i], color));
-      g.fillStyle = gradient; g.fillRect(0, 0, 4, 256);
-      const texture = new THREE.CanvasTexture(canvas); texture.encoding = THREE.sRGBEncoding;
-      this.sky.set(key, texture);
-    }
+    // Prepare a preset without changing the title's existing scene.
+    this.mix('DAY', 'DAY', 1);
   }
-  subscribe(callback) { this.listeners.add(callback); callback(ENVIRONMENT[this.state], this.state); return () => this.listeners.delete(callback); }
-  addRoad(material) { this.roads.add(material); material.color.setHex(ENVIRONMENT[this.state].road); }
-  addWindows(material) { this.windows.add(material); this.applyMaterial(material); }
+  subscribe(callback) { this.listeners.add(callback); callback(this.current, this.state); return () => this.listeners.delete(callback); }
+  addRoad(material) { this.roads.add(material); this.applyRoad(material); }
+  applyRoad(material) { material.color.setHex(this.current.road); material.roughness = this.current.roadRoughness; }
+  addWindows(material) { this.windows.add(material); this.applyWindow(material); }
+  applyWindow(material) { material.emissive?.setHex(0xffca83); material.emissiveIntensity = this.current.windows; }
+  addBuildings(material) { this.buildings.add(material); material.color.setHex(this.current.buildingTint); }
   addBackdrop(material, day = 0xffffff, night = 0x566274) {
     const entry = { material, day:new THREE.Color(day).convertSRGBToLinear(), night:new THREE.Color(night).convertSRGBToLinear() };
-    this.backdrops.add(entry); material.color.copy(this.isNight ? entry.night : entry.day);
+    this.backdrops.add(entry); this.applyBackdrop(entry);
   }
-  applyMaterial(material) { material.emissive?.setHex(0xffca83); material.emissiveIntensity = ENVIRONMENT[this.state].windows; }
-  setState(state) {
-    if (!ENVIRONMENT[state]) throw new Error(`Unknown environment ${state}`);
+  applyBackdrop({material, day, night}) { material.color.copy(day).lerp(night, this.current.backdrop); }
+  // Baked geometry shares materials with scenery. Clone once per source material,
+  // then share that clone across all hazards, instead of brightening the city.
+  addReadableObject(group) {
+    group.traverse(mesh => {
+      if (!mesh.isMesh || Array.isArray(mesh.material) || !mesh.material.emissive || mesh.material.userData.nightReadable) return;
+      const source = mesh.material;
+      let material = this.readable.get(source);
+      if (!material) {
+        material = source.clone(); material.userData.nightReadable = true;
+        material.emissive.setHex(0xa5b7ce); material.emissiveIntensity = this.current.hazardEmission;
+        this.readable.set(source, material);
+      }
+      mesh.material = material;
+    });
+  }
+  mix(from, to, amount) {
+    const a = ENVIRONMENT[from], b = ENVIRONMENT[to], p = this.current;
+    if (!a || !b || !Number.isFinite(amount)) throw new Error('Invalid environment blend');
+    const t = THREE.MathUtils.clamp(amount, 0, 1);
+    for (const key of scalarFields) p[key] = THREE.MathUtils.lerp(a[key], b[key], t);
+    for (const key of colorFields) p[key] = this.color.setHex(a[key]).lerp(this.otherColor.setHex(b[key]), t).getHex();
+    for (let i=0; i<4; i++) p.sky[i] = this.color.set(a.sky[i]).lerp(this.otherColor.set(b.sky[i]), t).getStyle();
+    for (let i=0; i<3; i++) p.sunOffset[i] = THREE.MathUtils.lerp(a.sunOffset[i], b.sunOffset[i], t);
+    this.state = t === 1 ? to : from;
+  }
+  setState(state) { this.setBlend(state, state, 1); }
+  // Explicit future transition API; competitive runs never call it automatically.
+  // The preset object and texture are reused, including during a transition.
+  setBlend(from, to, amount) {
+    this.mix(from, to, amount);
+    const p = this.current, g = this.canvas.getContext('2d');
+    const gradient = g.createLinearGradient(0,0,0,256);
+    p.sky.forEach((color,i) => gradient.addColorStop([0,.4,.63,1][i], color));
+    g.fillStyle = gradient; g.fillRect(0,0,4,256); this.sky.needsUpdate = true;
     if (this.previousSky) { this.previousSky.dispose(); this.previousSky = null; }
-    this.state = state;
-    const p = ENVIRONMENT[state];
-    this.scene.background = this.sky.get(state);
+    this.scene.background = this.sky;
     this.scene.fog.color.setHex(p.fog);
     this.hemi.color.setHex(p.hemiSky); this.hemi.groundColor.setHex(p.hemiGround); this.hemi.intensity = p.ambient;
     this.sun.color.setHex(p.sun); this.sun.intensity = p.sunPower;
     this.renderer.toneMappingExposure = p.exposure;
-    for (const m of this.roads) m.color.setHex(p.road);
-    for (const m of this.windows) this.applyMaterial(m);
-    for (const { material, day, night } of this.backdrops) material.color.copy(state === 'NIGHT' ? night : day);
-    for (const fn of this.listeners) fn(p, state);
+    for (const m of this.roads) this.applyRoad(m);
+    for (const m of this.windows) this.applyWindow(m);
+    for (const entry of this.backdrops) this.applyBackdrop(entry);
+    for (const m of this.buildings) m.color.setHex(p.buildingTint);
+    for (const m of this.readable.values()) m.emissiveIntensity = p.hazardEmission;
+    for (const fn of this.listeners) fn(p, this.state);
   }
-  get isNight() { return this.state === 'NIGHT'; }
-  get dynamicHeadlights() { return this.isNight && this.quality.profile !== 'low'; }
-  dispose() { for (const texture of this.sky.values()) texture.dispose(); this.listeners.clear(); this.roads.clear(); this.windows.clear(); this.backdrops.clear(); }
+  positionLight() {
+    const offset = this.current.sunOffset;
+    this.sun.position.set(this.sun.target.position.x+offset[0], this.sun.target.position.y+offset[1], this.sun.target.position.z+offset[2]);
+  }
+  get isNight() { return this.current.backdrop > .5; }
+  dispose() {
+    this.sky.dispose(); this.previousSky?.dispose(); this.previousSky = null;
+    for (const material of this.readable.values()) material.dispose();
+    for (const collection of [this.listeners,this.roads,this.windows,this.backdrops,this.buildings,this.readable]) collection.clear();
+  }
 }

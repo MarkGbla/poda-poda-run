@@ -17,13 +17,14 @@ const url = process.env.PODA_URL || 'http://127.0.0.1:5173/';
 let failed = false;
 const cases = [['DAY',{width:1280,height:720}], ['NIGHT',{width:1280,height:720}], ['NIGHT',{width:412,height:860}], ['NIGHT',{width:860,height:412}], ['NIGHT',{width:412,height:860},'low'], ['NIGHT',{width:1280,height:720},'auto','central']];
 for (const [index, [mode, viewport, quality = 'auto', route = 'western']] of cases.entries()) {
+  if (process.env.PODA_FLOW === 'only') continue;
   if (process.env.PODA_ONLY && !process.env.PODA_ONLY.split(',').includes(String(index))) continue;
   const page = await browser.newPage({ viewport });
   const errors = []; page.on('pageerror', error => errors.push(error.message));
   try {
     await page.addInitScript(({mode,quality,route}) => { localStorage.setItem('poda-environment', mode); localStorage.setItem('poda-quality', quality); localStorage.setItem('poda-route', route); }, {mode,quality,route});
     await page.goto(url + (route==='central'?'?cbd&benchmark&stats':'?benchmark&stats'), { waitUntil:'domcontentloaded', timeout:60000 });
-    await page.waitForFunction(() => window.PODA?.debug?.metrics, null, { timeout:route === 'central' ? 150000 : 60000 });
+    await page.waitForFunction(() => window.PODA?.debug?.metrics, null, { timeout:150000 });
     await page.waitForTimeout(2000);
     const result = await page.evaluate(() => ({
       state: window.PODA?.debug?.run().state,
@@ -37,7 +38,47 @@ for (const [index, [mode, viewport, quality = 'auto', route = 'western']] of cas
     console.log(JSON.stringify({ mode, viewport, quality, route, result, errors }));
     const street = route==='central'?result.cbdStreet:result.streetLights;
     if (errors.length || result.state !== 'play' || !result.playerLight || street?.[0] !== (mode === 'NIGHT') || result.playerSpot !== (mode === 'NIGHT' && quality !== 'low')) failed = true;
-  } catch (error) { failed = true; console.error(mode, viewport, error.message); }
+  } catch (error) { failed = true; console.error(mode, viewport, error.message, errors); }
+  await page.close();
+}
+if (process.env.PODA_FLOW) {
+  const page = await browser.newPage({viewport:{width:412,height:860}}), errors=[];
+  page.on('pageerror', error=>errors.push(error.message));
+  try {
+    await page.addInitScript(()=>{localStorage.setItem('poda-route','western');localStorage.setItem('poda-quality','low');localStorage.setItem('poda-muted','1');});
+    await page.goto(url+'?stats', {waitUntil:'domcontentloaded'});
+    await page.waitForFunction(()=>window.PODA?.debug?.metrics);
+    await page.locator('#environmentSelect').selectOption('NIGHT');
+    await page.locator('#startBtn').click();
+    await page.waitForFunction(()=>window.PODA.debug.run().S.time>.3);
+    await page.keyboard.down('ArrowDown');
+    await page.waitForTimeout(250);
+    const braking = await page.evaluate(()=>{
+      const p=window.PODA.debug.scene.children.find(x=>x.userData.vehicleLights?.player);
+      return p.userData.vehicleLights.tail[0].material.color.getHex()===0xff2922;
+    });
+    if(!braking)throw Error('Player brake lamps failed during actual braking');
+    await page.keyboard.up('ArrowDown');
+    await page.locator('#pauseBtn').click();
+    const paused=await page.evaluate(()=>({time:window.PODA.debug.run().S.time,state:window.PODA.debug.run().state}));
+    await page.setViewportSize({width:860,height:412});
+    await page.waitForTimeout(250);
+    const frozen=await page.evaluate(()=>window.PODA.debug.run().S.time);
+    if(paused.state!=='paused'||paused.time!==frozen)throw Error('Pause advanced simulation');
+    await page.locator('#resumeBtn').click();
+    await page.waitForFunction(()=>window.PODA.debug.run().state==='play');
+    await page.locator('#pauseBtn').click();
+    await page.locator('#homePause').click();
+    await page.locator('#environmentSelect').selectOption('DAY');
+    await page.locator('#startBtn').click();
+    await page.waitForFunction(()=>window.PODA.debug.metrics.environment==='DAY');
+    const reset=await page.evaluate(()=>{
+      const roots=window.PODA.debug.scene.children.filter(x=>x.userData.vehicleLights?.player);
+      return {roots:roots.length,beam:roots[0].userData.vehicleLights.plane.visible,spot:roots[0].userData.vehicleLights.spot.visible};
+    });
+    if(reset.roots!==1||reset.beam||reset.spot||errors.length)throw Error('Restart lighting failed: '+JSON.stringify({reset,errors}));
+    console.log(JSON.stringify({flow:'night braking, pause, orientation, resume, return home, day restart',passed:true,errors}));
+  } catch(error) {failed=true;console.error('Run flow',error.message,errors);}
   await page.close();
 }
 await browser.close();
