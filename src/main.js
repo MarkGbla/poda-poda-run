@@ -1,3 +1,4 @@
+import { createStreakUI } from './ui/StreakUI.js';
 import '../base-ui.css';
 import '../drive-ui.css';
 import '../start-ui.css';
@@ -875,7 +876,7 @@ const clock = new window.PODA_GameClock();
 const events = new window.PODA_EventBus();
 const missions = new window.PODA_MissionSystem(events, store);
 const api = new window.PODA_ApiClient(store, fetch.bind(window), () => crypto.randomUUID());
-let onlineRun = null, accountUI = null;
+let onlineRun = null, accountUI = null, streakUI = null;
 let runSerial = 0, lastResult=null, verifiedScoreRank=null;
 let garageReturnState = 'attract';
 let garageHidden = [];
@@ -1671,6 +1672,8 @@ function startRun() {
   events.emit('game:start', { route: DATA.route });
   onlineRun = api.start({ route: routeKey(), vehicle: vehicleId, gameVersion: RULES.GAME_VERSION,
     practice: demo || benchmark || params.has('sendme') || !!forcedDistrict });
+  streakUI?.started({ route: routeKey(), vehicle: vehicleId, handle: onlineRun,
+    practice: demo || benchmark || params.has('sendme') || !!forcedDistrict });
 }
 function pauseRun() {
   if (state !== 'play') return;
@@ -1760,9 +1763,11 @@ function endRun(completed = false) {
   setTimeout(() => {
     if (runSerial !== finishedSerial || (state !== 'over' && state !== 'complete')) return;
     $('over').hidden = false; $('over').scrollTop=0; $('againBtn').focus({preventScroll:true});
+    streakUI?.flush();
   }, 900);
 }
 function returnHome() {
+  queueMicrotask(() => streakUI?.flush());
   if (!isFinished()) return;
   pauseRunAudio();
   runSerial++;
@@ -2403,7 +2408,8 @@ fontsReady.catch(() => {}).then(() => {
   cameraSystem.lookX = S.x;
   camera.lookAt(S.x, 1.5, -16);
   showBest();
-  accountUI = createAccountUI({ api, store, onProfileChange: syncResultName, canApply: () => state === 'attract', applyPreferences: preferences => {
+  streakUI = createStreakUI({ api, store, gameVersion: RULES.GAME_VERSION, safe: () => state === 'attract' || ((state === 'over' || state === 'complete') && !$('over').hidden) });
+  accountUI = createAccountUI({ api, store, onProfileChange: () => { syncResultName(); streakUI.sync(); }, canApply: () => state === 'attract', applyPreferences: preferences => {
     if (state !== 'attract') return;
     const controls = {'poda-vehicle':'rideSelect','poda-route':'routeSelect','poda-livery':'garageLivery',
       'poda-slogan':'garageSlogan','poda-paint':'bodyPaint','poda-rack':'rackSelect','poda-cargo':'cargoSelect',

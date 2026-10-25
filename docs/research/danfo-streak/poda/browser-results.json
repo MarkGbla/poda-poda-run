@@ -1,0 +1,16 @@
+{
+  "results": [
+    "normal gameplay qualifies; celebration deferred until safe Home transition",
+    "desktop: Continue visible within viewport after orientation change",
+    "mobile-portrait: Continue visible within viewport after orientation change",
+    "mobile-landscape: Continue visible within viewport after orientation change",
+    "reduced motion disables entrance animation",
+    "Continue closes without restart; repeated run does not celebrate",
+    "refresh preserves count without celebration",
+    "indicator inspection and Escape dismissal",
+    "previous-day fixture increments via actual gameplay",
+    "expired streak resets through gameplay, longest preserved",
+    "blocked localStorage remains playable and does not repeat same-session celebrations"
+  ],
+  "errors": []
+}

@@ -1,3 +1,4 @@
+import { runActivity } from './services/Streaks.mjs';
 import { HttpError, json, checkOrigin, limit } from './http.mjs';
 import { beginLogin, finishLogin } from './auth/google.mjs';
 import { getPlayer, requirePlayer, readCookie, cookie, hash } from './auth/session.mjs';
@@ -28,6 +29,7 @@ export default {
       }
       if (path === '/api/me/name' && request.method === 'POST') return await rename(request, env, await requirePlayer(request, env));
       if (path === '/api/me/progress' && request.method === 'POST') return await saveProgress(request, env, await requirePlayer(request, env));
+      if (path === '/api/runs/activity' && request.method === 'POST') return await runActivity(request, env, await requirePlayer(request, env));
       if (path === '/api/runs/start' && request.method === 'POST') return await startRun(request, env, await requirePlayer(request, env));
       if (path === '/api/runs/finish' && request.method === 'POST') return await finishRun(request, env, await requirePlayer(request, env));
       return json({ error: 'Not found' }, 404);

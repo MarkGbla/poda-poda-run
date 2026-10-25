@@ -18,7 +18,11 @@
       if (!response.ok) { const error = new Error(data.error || 'Cloud service unavailable'); error.status = response.status; throw error; }
       return data;
     }
-    async refresh() { this.account = await this.request('/api/me'); return this.account; }
+    async refresh() {
+      this.account = await this.request('/api/me');
+      this.storage.set('poda-account-present', this.account?.player ? '1' : '0');
+      return this.account;
+    }
     start({ route, vehicle, gameVersion, practice = false }) {
       const player = this.account?.player;
       if (!player || practice || !this.account.rankedRoutes.includes(route)) return null;
@@ -65,6 +69,6 @@
       return results;
     }
     leaderboard(period) { return this.request(`/api/leaderboard?period=${encodeURIComponent(period)}`); }
-    async logout() { await this.request('/api/auth/logout', {}); this.account = null; }
+    async logout() { await this.request('/api/auth/logout', {}); this.account = null; this.storage.set('poda-account-present', '0'); }
   };
 });

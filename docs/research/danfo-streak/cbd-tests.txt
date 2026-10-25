@@ -1,0 +1,94 @@
+TAP version 13
+# Subtest: projection round-trips and keeps distances
+ok 1 - projection round-trips and keeps distances
+  ---
+  duration_ms: 166.758439
+  type: 'test'
+  ...
+# Subtest: dataset is complete, finite and attributed
+ok 2 - dataset is complete, finite and attributed
+  ---
+  duration_ms: 39.75157
+  type: 'test'
+  ...
+# Subtest: the loop is the core CBD block in the mapped one-way direction
+ok 3 - the loop is the core CBD block in the mapped one-way direction
+  ---
+  duration_ms: 12.619793
+  type: 'test'
+  ...
+# Subtest: path stays within tolerance of the surveyed centreline
+ok 4 - path stays within tolerance of the surveyed centreline
+  ---
+  duration_ms: 145.986269
+  type: 'test'
+  ...
+# Subtest: path is continuous, never tighter than a three-lane road can turn
+ok 5 - path is continuous, never tighter than a three-lane road can turn
+  ---
+  duration_ms: 67.789802
+  type: 'test'
+  ...
+# Subtest: road-space lateral offsets land on the correct side
+ok 6 - road-space lateral offsets land on the correct side
+  ---
+  duration_ms: 18.144287
+  type: 'test'
+  ...
+# Subtest: stops run forward along the loop, on straights, one lap long
+ok 7 - stops run forward along the loop, on straights, one lap long
+  ---
+  duration_ms: 3.29101
+  type: 'test'
+  ...
+# Subtest: the speed envelope is brakeable and respects lateral limits
+ok 8 - the speed envelope is brakeable and respects lateral limits
+  ---
+  duration_ms: 196.854629
+  type: 'test'
+  ...
+# Subtest: a simulated lap at full gas never exceeds the corner limits
+ok 9 - a simulated lap at full gas never exceeds the corner limits
+  ---
+  duration_ms: 311.788547
+  type: 'test'
+  ...
+# Subtest: no speed cap means PlayerSystem behaves exactly as before
+ok 10 - no speed cap means PlayerSystem behaves exactly as before
+  ---
+  duration_ms: 16.926057
+  type: 'test'
+  ...
+# Subtest: static hazards stay out of corners and the blind run after them
+ok 11 - static hazards stay out of corners and the blind run after them
+  ---
+  duration_ms: 3.08211
+  type: 'test'
+  ...
+# Subtest: every turn cue names a real street
+ok 12 - every turn cue names a real street
+  ---
+  duration_ms: 11.992196
+  type: 'test'
+  ...
+# Subtest: side-street pavements never cross the playable carriageway
+ok 13 - side-street pavements never cross the playable carriageway
+  ---
+  duration_ms: 89944.944899
+  type: 'test'
+  ...
+# Subtest: no footprint stands in the gameplay corridor once fitted, and moves are small
+ok 14 - no footprint stands in the gameplay corridor once fitted, and moves are small
+  ---
+  duration_ms: 606.249051
+  type: 'test'
+  ...
+1..14
+# tests 14
+# suites 0
+# pass 14
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 94376.267959

@@ -1,0 +1,38 @@
+import {chromium} from 'playwright-core';
+import assert from 'node:assert/strict';
+import {homedir} from 'node:os';
+import {writeFileSync} from 'node:fs';
+const browser=await chromium.launch({executablePath:process.env.SMOKE_CHROMIUM||`${homedir()}/Library/Caches/ms-playwright/chromium-1228/chrome-mac-x64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing`,headless:true});
+const base=process.env.STREAK_ACCOUNT_URL || 'http://127.0.0.1:5190', results=[],errors=[];
+try {
+ const a=await browser.newContext(),b=await browser.newContext();
+ const p=await a.newPage(),q=await b.newPage();
+ p.on('pageerror',e=>errors.push(e.message));q.on('pageerror',e=>errors.push(e.message));
+ await p.goto(base+'/?fixture=guest',{waitUntil:'domcontentloaded',timeout:90000});await p.locator('#streakIndicator').waitFor();
+ await p.evaluate(()=>localStorage.setItem('poda-guest-streak-v1',JSON.stringify({current:7,longest:9,lastDate:new Date().toISOString().slice(0,10)})));
+ await p.goto(base+'/?fixture=driver',{waitUntil:'domcontentloaded',timeout:90000});await p.waitForFunction(()=>document.getElementById('accountTitle')?.textContent==='SaloneDriver');
+ assert.match(await p.locator('#streakIndicator').textContent(),/0-day/);results.push('login preserves trusted empty account; unsigned guest 7-day history stays separate');
+ await a.route('**/api/runs/**', route=>route.abort());
+ await p.locator('#startBtn').click();await p.locator('#pauseBtn').click();await p.locator('#homePause').click();
+ assert.match(await p.locator('#streakIndicator').textContent(),/0-day/);
+ assert.equal(await p.locator('#streakDialog').isVisible(),false);
+ await a.unroute('**/api/runs/**');await p.evaluate(()=>dispatchEvent(new Event('online')));
+ await p.waitForFunction(()=>document.getElementById('streakIndicator').textContent.includes('1-day'));
+ await p.locator('#streakDialog').waitFor({state:'visible'});await p.locator('#streakContinue').click();
+ results.push('failed server requests do not fabricate progress; reconnect retries and confirms one day');
+ await q.goto(base+'/?fixture=driver',{waitUntil:'domcontentloaded',timeout:90000});await q.waitForFunction(()=>document.getElementById('accountTitle')?.textContent==='SaloneDriver');
+ await Promise.all([p.locator('#startBtn').click(),q.locator('#startBtn').click()]);
+ await p.waitForFunction(()=>document.getElementById('streakIndicator').textContent.includes('1-day'));
+ await q.waitForFunction(()=>document.getElementById('streakIndicator').textContent.includes('1-day'));
+ assert.equal(await p.locator('#streakDialog').isVisible(),false);results.push('two browser sessions qualify one server day; no dialog during moving gameplay');
+ const profile=await (await a.request.get(base+'/api/me')).json();assert.equal(profile.streak.current,1);
+ await p.locator('#pauseBtn').click();await p.locator('#homePause').click();
+ if(await p.locator('#streakDialog').isVisible()) await p.locator('#streakContinue').click();
+ await q.reload({waitUntil:'domcontentloaded',timeout:90000});await q.waitForFunction(()=>document.getElementById('accountTitle')?.textContent==='SaloneDriver');
+ assert.match(await q.locator('#streakIndicator').textContent(),/1-day/);results.push('separate device refresh restores authoritative account count');
+ await p.locator('#accountTitle').click();await p.locator('#accountLogout').click();
+ await p.waitForFunction(()=>document.getElementById('accountTitle')?.textContent==='Sign in / sign up');
+ assert.match(await p.locator('#streakIndicator').textContent(),/7-day/);results.push('logout restores guest history and does not expose account count');
+ assert.equal(profile.streak.longest,1);assert.deepEqual(errors,[]);
+} finally {await browser.close();}
+writeFileSync('docs/research/danfo-streak/poda/account-browser-results.json',JSON.stringify({results,errors},null,2));console.log({results,errors});

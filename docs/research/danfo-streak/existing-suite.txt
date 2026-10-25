@@ -1,0 +1,553 @@
+
+> poda-poda-run@0.1.0 test
+> node --test tests/*.test.cjs
+
+TAP version 13
+# Subtest: guest, practice and unsupported routes never start official runs
+ok 1 - guest, practice and unsupported routes never start official runs
+  ---
+  duration_ms: 91.352421
+  type: 'test'
+  ...
+# Subtest: each run captures its own asynchronous start even across restarts
+ok 2 - each run captures its own asynchronous start even across restarts
+  ---
+  duration_ms: 29.080585
+  type: 'test'
+  ...
+# Subtest: unknown save outcome persists; reload retries same run, never another account queue
+ok 3 - unknown save outcome persists; reload retries same run, never another account queue
+  ---
+  duration_ms: 38.771899
+  type: 'test'
+  ...
+# Subtest: projection round-trips and keeps distances
+ok 4 - projection round-trips and keeps distances
+  ---
+  duration_ms: 45.996706
+  type: 'test'
+  ...
+# Subtest: dataset is complete, finite and attributed
+ok 5 - dataset is complete, finite and attributed
+  ---
+  duration_ms: 97.012079
+  type: 'test'
+  ...
+# Subtest: the loop is the core CBD block in the mapped one-way direction
+ok 6 - the loop is the core CBD block in the mapped one-way direction
+  ---
+  duration_ms: 125.102958
+  type: 'test'
+  ...
+# Subtest: path stays within tolerance of the surveyed centreline
+ok 7 - path stays within tolerance of the surveyed centreline
+  ---
+  duration_ms: 231.091946
+  type: 'test'
+  ...
+# Subtest: path is continuous, never tighter than a three-lane road can turn
+ok 8 - path is continuous, never tighter than a three-lane road can turn
+  ---
+  duration_ms: 92.599259
+  type: 'test'
+  ...
+# Subtest: road-space lateral offsets land on the correct side
+ok 9 - road-space lateral offsets land on the correct side
+  ---
+  duration_ms: 17.338131
+  type: 'test'
+  ...
+# Subtest: stops run forward along the loop, on straights, one lap long
+ok 10 - stops run forward along the loop, on straights, one lap long
+  ---
+  duration_ms: 5.194478
+  type: 'test'
+  ...
+# Subtest: the speed envelope is brakeable and respects lateral limits
+ok 11 - the speed envelope is brakeable and respects lateral limits
+  ---
+  duration_ms: 304.588678
+  type: 'test'
+  ...
+# Subtest: a simulated lap at full gas never exceeds the corner limits
+ok 12 - a simulated lap at full gas never exceeds the corner limits
+  ---
+  duration_ms: 560.269111
+  type: 'test'
+  ...
+# Subtest: no speed cap means PlayerSystem behaves exactly as before
+ok 13 - no speed cap means PlayerSystem behaves exactly as before
+  ---
+  duration_ms: 21.026375
+  type: 'test'
+  ...
+# Subtest: static hazards stay out of corners and the blind run after them
+ok 14 - static hazards stay out of corners and the blind run after them
+  ---
+  duration_ms: 3.469494
+  type: 'test'
+  ...
+# Subtest: every turn cue names a real street
+ok 15 - every turn cue names a real street
+  ---
+  duration_ms: 2.422178
+  type: 'test'
+  ...
+# Subtest: side-street pavements never cross the playable carriageway
+ok 16 - side-street pavements never cross the playable carriageway
+  ---
+  duration_ms: 90104.69865
+  type: 'test'
+  ...
+# Subtest: no footprint stands in the gameplay corridor once fitted, and moves are small
+ok 17 - no footprint stands in the gameplay corridor once fitted, and moves are small
+  ---
+  duration_ms: 511.216589
+  type: 'test'
+  ...
+# Subtest: Freetown Central is one open mapped drive with the old Central and CBD landmarks in order
+ok 18 - Freetown Central is one open mapped drive with the old Central and CBD landmarks in order
+  ---
+  duration_ms: 1046.93801
+  type: 'test'
+  ...
+# Subtest: the open path ends at Eastern Police and never wraps the vehicle to Congo Cross
+ok 19 - the open path ends at Eastern Police and never wraps the vehicle to Congo Cross
+  ---
+  duration_ms: 580.661996
+  type: 'test'
+  ...
+# Subtest: game state accepts pause, resume and result transitions
+ok 20 - game state accepts pause, resume and result transitions
+  ---
+  duration_ms: 93.481167
+  type: 'test'
+  ...
+# Subtest: clock caps tab suspension and resets on resume
+ok 21 - clock caps tab suspension and resets on resume
+  ---
+  duration_ms: 27.629489
+  type: 'test'
+  ...
+# Subtest: event listeners can unsubscribe
+ok 22 - event listeners can unsubscribe
+  ---
+  duration_ms: 1.721878
+  type: 'test'
+  ...
+# Subtest: finished and abandoned runs can return home and start a fresh run
+ok 23 - finished and abandoned runs can return home and start a fresh run
+  ---
+  duration_ms: 1.183131
+  type: 'test'
+  ...
+# (node:39431) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///Users/markgbla/Downloads/poda-poda-run/src/rendering/EnvironmentManager.js is not specified and it doesn't parse as CommonJS.
+# Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+# To eliminate this warning, add "type": "module" to /Users/markgbla/Downloads/poda-poda-run/package.json.
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: preset interpolation reuses texture, preserves quality fog distance, and returns to exact day values
+ok 24 - preset interpolation reuses texture, preserves quality fog distance, and returns to exact day values
+  ---
+  duration_ms: 673.050298
+  type: 'test'
+  ...
+# Subtest: readability materials are shared without modifying scenery and disposed by their owner
+ok 25 - readability materials are shared without modifying scenery and disposed by their owner
+  ---
+  duration_ms: 147.602556
+  type: 'test'
+  ...
+# Subtest: brake signal detects the same actual deceleration at 30, 60 and 120 Hz and holds across pause
+ok 26 - brake signal detects the same actual deceleration at 30, 60 and 120 Hz and holds across pause
+  ---
+  duration_ms: 2.997188
+  type: 'test'
+  ...
+# Subtest: player beams point forward after steering; quality removes the spotlight but preserves road projection
+ok 27 - player beams point forward after steering; quality removes the spotlight but preserves road projection
+  ---
+  duration_ms: 151.882285
+  type: 'test'
+  ...
+# Subtest: NPC tiers, SENDME lean, pool resets and overflow disposal retain shared assets
+ok 28 - NPC tiers, SENDME lean, pool resets and overflow disposal retain shared assets
+  ---
+  duration_ms: 45.705449
+  type: 'test'
+  ...
+# Subtest: street lamps support partial activation, oriented pools and detach on disposal
+ok 29 - street lamps support partial activation, oriented pools and detach on disposal
+  ---
+  duration_ms: 40.748838
+  type: 'test'
+  ...
+# Subtest: NPC lamps follow real TrafficAI deceleration, then return to running lights
+ok 30 - NPC lamps follow real TrafficAI deceleration, then return to running lights
+  ---
+  duration_ms: 66.387385
+  type: 'test'
+  ...
+# Subtest: all vehicle rigs retain forward beams and shared geometry after rebuilding
+ok 31 - all vehicle rigs retain forward beams and shared geometry after rebuilding
+  ---
+  duration_ms: 118.504791
+  type: 'test'
+  ...
+# (node:39432) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: signed Google identity validates signature, issuer, audience, expiry and nonce
+ok 32 - signed Google identity validates signature, issuer, audience, expiry and nonce
+  ---
+  duration_ms: 4863.006051
+  type: 'test'
+  ...
+# Subtest: real OAuth callback flow checks PKCE, consumes state once and deduplicates Google subject
+ok 33 - real OAuth callback flow checks PKCE, consumes state once and deduplicates Google subject
+  ---
+  duration_ms: 1758.243881
+  type: 'test'
+  ...
+# Subtest: guest ID and Unicode nickname persist, including migration from existing names
+ok 34 - guest ID and Unicode nickname persist, including migration from existing names
+  ---
+  duration_ms: 270.687476
+  type: 'test'
+  ...
+# Subtest: empty saves rejected; Unicode limit does not split surrogate pairs
+ok 35 - empty saves rejected; Unicode limit does not split surrogate pairs
+  ---
+  duration_ms: 19.407282
+  type: 'test'
+  ...
+# Subtest: unavailable or corrupt storage retains a functional session
+ok 36 - unavailable or corrupt storage retains a functional session
+  ---
+  duration_ms: 38.8852
+  type: 'test'
+  ...
+# Subtest: account name takes precedence and private details are never used
+ok 37 - account name takes precedence and private details are never used
+  ---
+  duration_ms: 8.081595
+  type: 'test'
+  ...
+# Subtest: keyboard and touch commands share the same held controls
+ok 38 - keyboard and touch commands share the same held controls
+  ---
+  duration_ms: 46.590614
+  type: 'test'
+  ...
+# Subtest: mission progress follows game events and persists
+ok 39 - mission progress follows game events and persists
+  ---
+  duration_ms: 48.023211
+  type: 'test'
+  ...
+# Subtest: soundtrack plays and loops from the final track to the first
+ok 40 - soundtrack plays and loops from the final track to the first
+  ---
+  duration_ms: 155.02931
+  type: 'test'
+  ...
+# Subtest: manual pause survives next track; music mute does not pause playback
+ok 41 - manual pause survives next track; music mute does not pause playback
+  ---
+  duration_ms: 136.468585
+  type: 'test'
+  ...
+# Subtest: hidden or paused games cannot start music and broken tracks are skipped
+ok 42 - hidden or paused games cannot start music and broken tracks are skipped
+  ---
+  duration_ms: 138.543457
+  type: 'test'
+  ...
+# Subtest: boarding respects capacity and the final stop
+ok 43 - boarding respects capacity and the final stop
+  ---
+  duration_ms: 85.643603
+  type: 'test'
+  ...
+# Subtest: missed passengers are lost and other destinations remain
+ok 44 - missed passengers are lost and other destinations remain
+  ---
+  duration_ms: 21.89108
+  type: 'test'
+  ...
+# Subtest: motorcycle drops its passenger before accepting one replacement
+ok 45 - motorcycle drops its passenger before accepting one replacement
+  ---
+  duration_ms: 44.772308
+  type: 'test'
+  ...
+# Subtest: manual quality profiles apply pixel ratio and shadows
+ok 46 - manual quality profiles apply pixel ratio and shadows
+  ---
+  duration_ms: 64.162363
+  type: 'test'
+  ...
+# Subtest: finite route includes all thirteen stops and ends at FBC
+ok 47 - finite route includes all thirteen stops and ends at FBC
+  ---
+  duration_ms: 132.225564
+  type: 'test'
+  ...
+# Subtest: stop acceptance uses the right lane, centre and low speed
+ok 48 - stop acceptance uses the right lane, centre and low speed
+  ---
+  duration_ms: 1.686128
+  type: 'test'
+  ...
+# Subtest: score and summary separate fares, coins and driving result
+ok 49 - score and summary separate fares, coins and driving result
+  ---
+  duration_ms: 24.166074
+  type: 'test'
+  ...
+# Subtest: riders stop behind stationary traffic without overlap at variable frame steps
+ok 50 - riders stop behind stationary traffic without overlap at variable frame steps
+  ---
+  duration_ms: 265.845093
+  type: 'test'
+  ...
+# Subtest: player ahead is a leader, adjacent player is not; speed cap respected
+ok 51 - player ahead is a leader, adjacent player is not; speed cap respected
+  ---
+  duration_ms: 72.825391
+  type: 'test'
+  ...
+# Subtest: multiple followers preserve separation regardless of update order
+ok 52 - multiple followers preserve separation regardless of update order
+  ---
+  duration_ms: 262.630202
+  type: 'test'
+  ...
+# Subtest: motorcycle bounds retain established collision and despawn rules
+ok 53 - motorcycle bounds retain established collision and despawn rules
+  ---
+  duration_ms: 1.827935
+  type: 'test'
+  ...
+# Subtest: rider behind a stopped player passes in an open lane without contact
+ok 54 - rider behind a stopped player passes in an open lane without contact
+  ---
+  duration_ms: 22.148161
+  type: 'test'
+  ...
+# (node:39441) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: shared formula and vehicle/route bounds validate all ranked combinations
+ok 55 - shared formula and vehicle/route bounds validate all ranked combinations
+  ---
+  duration_ms: 605.36722
+  type: 'test'
+  ...
+# Subtest: unconfigured backend leaves guest identity and local play available
+ok 56 - unconfigured backend leaves guest identity and local play available
+  ---
+  duration_ms: 3034.208352
+  type: 'test'
+  ...
+# Subtest: player distance and speed are stable across common frame steps
+ok 57 - player distance and speed are stable across common frame steps
+  ---
+  duration_ms: 66.89773
+  type: 'test'
+  ...
+# Subtest: dwell completes once and an over run does not complete pending dwell
+ok 58 - dwell completes once and an over run does not complete pending dwell
+  ---
+  duration_ms: 63.65312
+  type: 'test'
+  ...
+# Subtest: traffic movement and collision are pure of rendered meshes
+ok 59 - traffic movement and collision are pure of rendered meshes
+  ---
+  duration_ms: 1.516001
+  type: 'test'
+  ...
+# Subtest: a stop stays winnable for a stretch after the poda passes it
+ok 60 - a stop stays winnable for a stretch after the poda passes it
+  ---
+  duration_ms: 39.065129
+  type: 'test'
+  ...
+# Subtest: recovery needs the brake held in the kerb lane
+ok 61 - recovery needs the brake held in the kerb lane
+  ---
+  duration_ms: 18.89183
+  type: 'test'
+  ...
+# Subtest: a stop is only missed once it is past the recovery limit
+ok 62 - a stop is only missed once it is past the recovery limit
+  ---
+  duration_ms: 2.366156
+  type: 'test'
+  ...
+# Subtest: braking in reverse rolls the poda backwards, but only while recovering
+ok 63 - braking in reverse rolls the poda backwards, but only while recovering
+  ---
+  duration_ms: 24.735472
+  type: 'test'
+  ...
+# Subtest: reversing never winds the odometer back
+ok 64 - reversing never winds the odometer back
+  ---
+  duration_ms: 15.596547
+  type: 'test'
+  ...
+# Subtest: approach guidance escalates as the stop gets closer
+ok 65 - approach guidance escalates as the stop gets closer
+  ---
+  duration_ms: 1.512347
+  type: 'test'
+  ...
+# Subtest: the multiplier steps up with sustained speed and is capped
+ok 66 - the multiplier steps up with sustained speed and is capped
+  ---
+  duration_ms: 1.105118
+  type: 'test'
+  ...
+# Subtest: style only accrues above the base multiplier, and tracks distance not frames
+ok 67 - style only accrues above the base multiplier, and tracks distance not frames
+  ---
+  duration_ms: 1.218943
+  type: 'test'
+  ...
+# Subtest: isFast measures against the chosen vehicle, not a fixed speed
+ok 68 - isFast measures against the chosen vehicle, not a fixed speed
+  ---
+  duration_ms: 43.722898
+  type: 'test'
+  ...
+# Subtest: an ordinary knock costs one condition, a knock while shaken costs two
+ok 69 - an ordinary knock costs one condition, a knock while shaken costs two
+  ---
+  duration_ms: 37.574446
+  type: 'test'
+  ...
+# Subtest: a run survives three spaced knocks but not two careless ones at low condition
+ok 70 - a run survives three spaced knocks but not two careless ones at low condition
+  ---
+  duration_ms: 4.88499
+  type: 'test'
+  ...
+# Subtest: style feeds the score and summarize reports it
+ok 71 - style feeds the score and summarize reports it
+  ---
+  duration_ms: 22.324989
+  type: 'test'
+  ...
+# Subtest: a run from before the multiplier existed still scores
+ok 72 - a run from before the multiplier existed still scores
+  ---
+  duration_ms: 1.014183
+  type: 'test'
+  ...
+# Subtest: parked player is a leader and a three-car queue stops without overlap, then recovers
+ok 73 - parked player is a leader and a three-car queue stops without overlap, then recovers
+  ---
+  duration_ms: 804.137026
+  type: 'test'
+  ...
+# Subtest: car behind a braking player uses an open lane and passes without contact
+ok 74 - car behind a braking player uses an open lane and passes without contact
+  ---
+  duration_ms: 332.416705
+  type: 'test'
+  ...
+# Subtest: moving traffic stays delta-time consistent at 30, 60, and 120 FPS
+ok 75 - moving traffic stays delta-time consistent at 30, 60, and 120 FPS
+  ---
+  duration_ms: 21.791159
+  type: 'test'
+  ...
+# Subtest: swept collision catches tunneling but preserves lateral near misses
+ok 76 - swept collision catches tunneling but preserves lateral near misses
+  ---
+  duration_ms: 2.472851
+  type: 'test'
+  ...
+# Subtest: all five vehicles enforce capacity and distinct handling
+ok 77 - all five vehicles enforce capacity and distinct handling
+  ---
+  duration_ms: 127.407092
+  type: 'test'
+  ...
+# Subtest: jump lands and can clear only low tagged obstacles
+ok 78 - jump lands and can clear only low tagged obstacles
+  ---
+  duration_ms: 83.569283
+  type: 'test'
+  ...
+# Subtest: up swipe rejects horizontal steering, slow gestures and tiny movements
+ok 79 - up swipe rejects horizontal steering, slow gestures and tiny movements
+  ---
+  duration_ms: 3.71057
+  type: 'test'
+  ...
+# Subtest: traffic follows obstacles and will not lane change into occupied space
+ok 80 - traffic follows obstacles and will not lane change into occupied space
+  ---
+  duration_ms: 38.042364
+  type: 'test'
+  ...
+# Subtest: four finite routes retain geographical stop order
+ok 81 - four finite routes retain geographical stop order
+  ---
+  duration_ms: 2.410763
+  type: 'test'
+  ...
+# Subtest: pothole remains fixed, slows once, and never loses passengers or ends a run
+ok 82 - pothole remains fixed, slows once, and never loses passengers or ends a run
+  ---
+  duration_ms: 20.857747
+  type: 'test'
+  ...
+# (node:39452) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: accepted run credits once across concurrent retries and returns stable receipt
+ok 83 - accepted run credits once across concurrent retries and returns stable receipt
+  ---
+  duration_ms: 3289.227413
+  type: 'test'
+  ...
+# Account API failed { path: '/api/runs/finish', type: 'Error' }
+# Subtest: failure in stats batch rolls back run, session and all rewards; retry succeeds
+ok 84 - failure in stats batch rolls back run, session and all rewards; retry succeeds
+  ---
+  duration_ms: 155.758066
+  type: 'test'
+  ...
+# Subtest: ownership, expiry, unsupported modes, CSRF, expired sessions and logout are enforced
+ok 85 - ownership, expiry, unsupported modes, CSRF, expired sessions and logout are enforced
+  ---
+  duration_ms: 127.421277
+  type: 'test'
+  ...
+# Subtest: one row per player, earliest-achievement ties, own rank and lifetime fares
+ok 86 - one row per player, earliest-achievement ties, own rank and lifetime fares
+  ---
+  duration_ms: 548.231714
+  type: 'test'
+  ...
+# Subtest: name uniqueness/cooldown and optimistic progress keep stale devices from overwriting
+ok 87 - name uniqueness/cooldown and optimistic progress keep stale devices from overwriting
+  ---
+  duration_ms: 154.942066
+  type: 'test'
+  ...
+# Subtest: UTC day and Monday boundaries are independent of local timezone
+ok 88 - UTC day and Monday boundaries are independent of local timezone
+  ---
+  duration_ms: 5.564982
+  type: 'test'
+  ...
+1..88
+# tests 88
+# suites 0
+# pass 88
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 95579.479179

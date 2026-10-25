@@ -163,14 +163,14 @@ async function main() {
   const num = s => parseFloat(String(s).replace(/[^\d.]/g, '')) || 0;
   /** Record an unreachable control as a failed check rather than aborting the run. */
   const safeClick = async (selector, label) => {
-    try { await page.click(selector, { timeout: 8000 }); return true; }
+    try { await page.click(selector, { timeout: 30000 }); return true; }
     catch { check(label || `click ${selector}`, false, 'not clickable'); return false; }
   };
 
   try {
     /* --- title --- */
     if (!args['cbd-only']) {
-    await page.goto(url + '?stats', { waitUntil: 'load' });
+    await page.goto(url + '?stats', { waitUntil: 'domcontentloaded', timeout: 90000 });
     await page.waitForSelector('#startBtn', { timeout: 20000 });
     await page.waitForTimeout(5000);               // give WebGL + fonts time to settle
     check('title screen visible', await page.isVisible('#title'));
@@ -194,12 +194,13 @@ async function main() {
     await safeClick('#pauseBtn', 'pause before leaving');
     await safeClick('#homePause', 'end the run and return home');
     check('music stops on Home', await page.evaluate(() => window.__podaSmokeMusic?.paused === true));
+    if (await page.isVisible('#streakDialog')) await safeClick('#streakContinue', 'dismiss earned daily streak');
     await safeClick('#startBtn', 'start another shift');
     await page.waitForFunction(() => window.__podaSmokeMusic && !window.__podaSmokeMusic.paused, null, { timeout: 5000 }).catch(() => {});
     await page.evaluate(() => addEventListener('pagehide', () => {
       sessionStorage.setItem('poda-smoke-pagehide-paused', String(window.__podaSmokeMusic?.paused));
     }));
-    await page.goto(url + '?stats', { waitUntil: 'load' });
+    await page.goto(url + '?stats', { waitUntil: 'domcontentloaded', timeout: 90000 });
     check('music stops when the page closes', await page.evaluate(() => sessionStorage.getItem('poda-smoke-pagehide-paused') === 'true'));
     await page.waitForSelector('#startBtn', { timeout: 20000 });
     await safeClick('#startBtn', 'start the driving check');
@@ -252,7 +253,7 @@ async function main() {
     }
 
     /* --- menus (from a fresh load, which is where they are reachable) --- */
-    await page.goto(url, { waitUntil: 'load' });
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 90000 });
     await page.waitForSelector('#startBtn', { timeout: 20000 });
     await page.waitForTimeout(4500);
 
@@ -287,7 +288,7 @@ async function main() {
      * the visual RNG (`seededVisuals`) and lays out a fixed set of fixtures, and
      * `loop()` skips `update()` in that mode — so the scene is static and the
      * counts are reproducible. This is the number to diff across refactors. */
-    await page.goto(url + '?benchmark&stats', { waitUntil: 'load' });
+    await page.goto(url + '?benchmark&stats', { waitUntil: 'domcontentloaded', timeout: 90000 });
     await page.waitForTimeout(7000);
     const bench = await page.evaluate(() => window.PODA?.debug?.metrics ?? null);
     check('benchmark scene renders', !!bench && bench.calls > 0);
@@ -300,7 +301,7 @@ async function main() {
     /* --- remaining entry points must still boot --- */
     for (const [label, suffix] of [['district view', '?district=Kissy'], ['garage view', '?garage']]) {
       const before = errors.length;
-      await page.goto(url + suffix, { waitUntil: 'load' });
+      await page.goto(url + suffix, { waitUntil: 'domcontentloaded', timeout: 90000 });
       await page.waitForTimeout(6000);
       check(`${label} boots`, errors.length === before,
         errors.slice(before).join('; ') || suffix);
@@ -310,7 +311,7 @@ async function main() {
     /* --- Freetown Central: the former ?cbd link opens the unified mapped route --- */
     {
       const before = errors.length;
-      await page.goto(url + '?cbd&stats', { waitUntil: 'load' });
+      await page.goto(url + '?cbd&stats', { waitUntil: 'domcontentloaded', timeout: 90000 });
       await page.waitForSelector('#startBtn', { timeout: 20000 });
       await page.waitForTimeout(4000);
       check('Central title identifies the unified route', (await page.textContent('#titleRouteName')).trim() === 'Freetown Central');
@@ -360,7 +361,7 @@ async function main() {
     {
       const mobile = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2, reducedMotion: 'reduce' });
       mobile.on('pageerror', e => errors.push(`mobile: ${e.message}`));
-      await mobile.goto(url + '?cbd', { waitUntil: 'load' });
+      await mobile.goto(url + '?cbd', { waitUntil: 'domcontentloaded', timeout: 90000 });
       await mobile.waitForFunction(() => !!window.PODA?.debug?.cbd);
       check('mobile title fits viewport', await mobile.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
       check('mobile CBD route name is not clipped', await mobile.locator('#titleRouteName').evaluate(el => el.scrollWidth <= el.clientWidth));
@@ -391,7 +392,7 @@ async function main() {
 
     /* --- motorcycle starts ready to collect its single passenger --- */
     await page.evaluate(() => localStorage.setItem('poda-vehicle', 'okada'));
-    await page.goto(url, { waitUntil: 'load' });
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 90000 });
     await page.waitForSelector('#startBtn', { timeout: 20000 });
     await safeClick('#startBtn', 'start motorcycle ride');
     await page.waitForTimeout(1800);

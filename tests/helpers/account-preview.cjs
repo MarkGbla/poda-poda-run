@@ -7,7 +7,7 @@ const {database,seed}=require('./account-db.cjs');
 (async()=>{
   const worker=(await import('../../server/worker.mjs')).default;
   const DB=database(),player=await seed(DB,'SaloneDriver');
-  const root=path.resolve(__dirname,'../../dist'),origin='http://127.0.0.1:5190';
+  const root=path.resolve(__dirname,'../../dist'),origin='http://127.0.0.1:'+(process.env.PORT || 5190);
   const types={'.html':'text/html','.js':'text/javascript','.css':'text/css','.png':'image/png','.jpg':'image/jpeg','.mp3':'audio/mpeg'};
   const env={DB,PUBLIC_ORIGIN:origin};
   env.ASSETS={async fetch(req){const url=new URL(req.url);const file=path.resolve(root,'.'+(url.pathname==='/'?'/index.html':url.pathname));
@@ -24,5 +24,5 @@ const {database,seed}=require('./account-db.cjs');
       if(url.searchParams.get('fixture')==='guest')res.setHeader('Set-Cookie','poda-session=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax');
       res.end(Buffer.from(await response.arrayBuffer()));
     } catch(error) {res.statusCode=500;res.end(error.message);}
-  }).listen(5190,'127.0.0.1',()=>console.log('Account preview fixture: '+origin+'/?fixture=driver'));
+  }).listen(Number(process.env.PORT || 5190),'127.0.0.1',()=>console.log('Account preview fixture: '+origin+'/?fixture=driver'));
 })();

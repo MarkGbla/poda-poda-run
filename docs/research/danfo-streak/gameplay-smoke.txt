@@ -1,0 +1,61 @@
+
+Poda-Poda Run — smoke check
+
+  ok   title screen visible
+  ok   page title — Poda-Poda Run
+  ok   HUD visible after start
+  ok   music starts during a run
+  ok   music pauses with the game
+  ok   music resumes with the game
+  ok   music stops on Home
+  ok   music stops when the page closes
+  ok   bus is moving — 79 km/h
+  ok   distance accumulates — 0.06 km
+  ok   next stop named — Lumley
+  ok   passengers tracked — 7/14
+  ok   renderer metrics exposed
+  ---- 260 draws · 134,697 triangles · 144 geometries · 30 textures · DPR 1.00 · 4 fps
+  ok   pause screen opens
+  ok   pause screen closes
+  ok   garage opens
+  ok   all rides listed — 5 rides
+  ok   all routes listed — 4 routes
+  ok   missions open
+  ok   leaderboard opens
+  ok   leaderboard reports a state — Unexpected token '<', "<meta char"... is not valid JSON You can view This device above.
+  ok   benchmark scene renders
+  ---- benchmark: 176 draws · 126,682 triangles · 121 geometries · 28 textures
+  ok   district view boots — ?district=Kissy
+  ok   garage view boots — ?garage
+  ok   Central title identifies the unified route
+  ok   CBD map credit is off the game view
+  ok   CBD map credit is available in menus
+  ok   Central keeps route navigation available
+  ok   CBD scenery is hidden in garage
+  ok   Central garage shows the mapped route
+  ok   Central garage explains driving and score storage
+  ok   Central garage lists stops in driving order
+  ok   switching away restores the arcade road
+  ok   switching back restores mapped streets
+  ok   Central selection persists as one route
+  ok   Central mapped route boots
+  ok   Central vehicle advances along the mapped road — 44 m on Main Motor Road
+  ok   Central route combines west, downtown and east stops
+  ok   CBD next stop shown
+  ---- cbd: 75 draws · 108,954 triangles · 90 geometries · 26 textures · 13 fps
+  ok   CBD restart resets route progress
+  ok   CBD view raises no errors
+  ok   mobile title fits viewport
+  ok   mobile CBD route name is not clipped
+  ok   CBD help explains automatic bends
+  ok   mobile gas engages
+  ok   mobile gas releases
+  ok   mobile swipe changes lane
+  ok   mobile pause is reachable
+  ok   mobile Home returns to title
+  ok   motorcycle starts with one empty passenger seat
+  ---- external hosts: fonts.googleapis.com, fonts.gstatic.com
+
+  FAIL start a CBD shift — not clickable
+
+FAIL — 50 checks passed, 1 failed, 0 page errors

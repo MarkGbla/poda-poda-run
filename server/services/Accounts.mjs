@@ -1,15 +1,17 @@
+import { STREAK_TIMEZONE } from '../../src/services/StreakRules.mjs';
+import { getStreak } from './Streaks.mjs';
 import { HttpError, json, readJson, limit } from '../http.mjs';
 import { authConfigured } from '../auth/google.mjs';
 import { RANKED_ROUTES, GAME_VERSION } from './ScoreValidator.mjs';
 export const PREFERENCE_KEYS = ['poda-vehicle','poda-route','poda-livery','poda-slogan','poda-paint','poda-rack',
   'poda-cargo','poda-wheels','poda-trim','poda-board','poda-sticker','poda-horn'];
 export async function profile(env, player) {
-  if (!player) return json({ player: null, authAvailable: authConfigured(env), rankedRoutes: RANKED_ROUTES, gameVersion: GAME_VERSION });
+  if (!player) return json({ player: null, streakTimezone: env.STREAK_TIMEZONE || STREAK_TIMEZONE, authAvailable: authConfigured(env), rankedRoutes: RANKED_ROUTES, gameVersion: GAME_VERSION });
   const [stats, progress] = await env.DB.batch([
     env.DB.prepare('SELECT best_score,lifetime_earnings,total_runs,completed_runs,total_distance,total_duration_ms,total_passengers,perfect_stops FROM player_stats WHERE player_id=?').bind(player.id),
     env.DB.prepare('SELECT preferences_json,version FROM player_progress WHERE player_id=?').bind(player.id),
   ]);
-  return json({ player, authAvailable: authConfigured(env), rankedRoutes: RANKED_ROUTES, gameVersion: GAME_VERSION,
+  return json({ player, streak: await getStreak(env, player.id), authAvailable: authConfigured(env), rankedRoutes: RANKED_ROUTES, gameVersion: GAME_VERSION,
     stats: stats.results[0] || { best_score: 0, lifetime_earnings: 0, total_runs: 0, completed_runs: 0, total_distance: 0, total_duration_ms: 0, total_passengers: 0, perfect_stops: 0 },
     progress: { preferences: JSON.parse(progress.results[0]?.preferences_json || '{}'), version: progress.results[0]?.version || 0 } });
 }

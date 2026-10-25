@@ -1,0 +1,33 @@
+
+Poda-Poda Run — smoke check
+
+  ok   Central title identifies the unified route
+  ok   CBD map credit is off the game view
+  ok   CBD map credit is available in menus
+  ok   Central keeps route navigation available
+  ok   CBD scenery is hidden in garage
+  ok   Central garage shows the mapped route
+  ok   Central garage explains driving and score storage
+  ok   Central garage lists stops in driving order
+  ok   switching away restores the arcade road
+  ok   switching back restores mapped streets
+  ok   Central selection persists as one route
+  ok   Central mapped route boots
+  ok   Central vehicle advances along the mapped road — 56 m on Main Motor Road
+  ok   Central route combines west, downtown and east stops
+  ok   CBD next stop shown
+  ---- cbd: 89 draws · 106,913 triangles · 105 geometries · 28 textures · 14 fps
+  ok   CBD restart resets route progress
+  ok   CBD view raises no errors
+  ok   mobile title fits viewport
+  ok   mobile CBD route name is not clipped
+  ok   CBD help explains automatic bends
+  ok   mobile gas engages
+  ok   mobile gas releases
+  ok   mobile swipe changes lane
+  ok   mobile pause is reachable
+  ok   mobile Home returns to title
+  ok   motorcycle starts with one empty passenger seat
+  ---- external hosts: fonts.googleapis.com, fonts.gstatic.com
+
+PASS — 26 checks passed, 0 failed, 0 page errors

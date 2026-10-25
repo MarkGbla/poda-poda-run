@@ -4,7 +4,7 @@ const path = require('node:path');
 function database() {
   const sql = new DatabaseSync(':memory:');
   sql.exec('PRAGMA foreign_keys=ON');
-  for (const file of ['0001_initial.sql','0002_accounts.sql']) sql.exec(fs.readFileSync(path.join(__dirname,'../../server/db/migrations',file),'utf8'));
+  for (const file of ['0001_initial.sql','0002_accounts.sql','0003_streaks.sql']) sql.exec(fs.readFileSync(path.join(__dirname,'../../server/db/migrations',file),'utf8'));
   const db = { sql, failAt: -1,
     prepare(query) {
       function statement(args = []) {

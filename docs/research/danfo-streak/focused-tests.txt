@@ -1,0 +1,118 @@
+TAP version 13
+# Subtest: guest, practice and unsupported routes never start official runs
+ok 1 - guest, practice and unsupported routes never start official runs
+  ---
+  duration_ms: 61.985626
+  type: 'test'
+  ...
+# Subtest: each run captures its own asynchronous start even across restarts
+ok 2 - each run captures its own asynchronous start even across restarts
+  ---
+  duration_ms: 21.465158
+  type: 'test'
+  ...
+# Subtest: unknown save outcome persists; reload retries same run, never another account queue
+ok 3 - unknown save outcome persists; reload retries same run, never another account queue
+  ---
+  duration_ms: 23.101437
+  type: 'test'
+  ...
+# (node:41039) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: first, repeated, consecutive and missed days preserve longest and expire display only
+ok 4 - first, repeated, consecutive and missed days preserve longest and expire display only
+  ---
+  duration_ms: 174.484611
+  type: 'test'
+  ...
+# Subtest: Freetown midnight, leap days, configurable timezone and corrupt data
+ok 5 - Freetown midnight, leap days, configurable timezone and corrupt data
+  ---
+  duration_ms: 1624.630757
+  type: 'test'
+  ...
+# Subtest: guest storage survives recreation, serialized tabs and unavailable storage
+ok 6 - guest storage survives recreation, serialized tabs and unavailable storage
+  ---
+  duration_ms: 134.621364
+  type: 'test'
+  ...
+# Subtest: untrusted guest history never overwrites trusted account, including expired values
+ok 7 - untrusted guest history never overwrites trusted account, including expired values
+  ---
+  duration_ms: 106.860446
+  type: 'test'
+  ...
+# Subtest: atomic database qualification, concurrent devices, retries across midnight, missed days
+ok 8 - atomic database qualification, concurrent devices, retries across midnight, missed days
+  ---
+  duration_ms: 963.081312
+  type: 'test'
+  ...
+# Subtest: streak batch failure rolls back receipts and counter; safe retry
+ok 9 - streak batch failure rolls back receipts and counter; safe retry
+  ---
+  duration_ms: 315.523436
+  type: 'test'
+  ...
+# Subtest: Worker enforces sessions/origin/settings; nameless and Central qualify; profile/logout isolate accounts
+ok 10 - Worker enforces sessions/origin/settings; nameless and Central qualify; profile/logout isolate accounts
+  ---
+  duration_ms: 2091.130057
+  type: 'test'
+  ...
+# Streak qualification unavailable
+# Subtest: streak storage failure does not prevent an official score session
+ok 11 - streak storage failure does not prevent an official score session
+  ---
+  duration_ms: 91.783748
+  type: 'test'
+  ...
+# (node:41040) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: accepted run credits once across concurrent retries and returns stable receipt
+ok 12 - accepted run credits once across concurrent retries and returns stable receipt
+  ---
+  duration_ms: 5213.5821
+  type: 'test'
+  ...
+# Account API failed { path: '/api/runs/finish', type: 'Error' }
+# Subtest: failure in stats batch rolls back run, session and all rewards; retry succeeds
+ok 13 - failure in stats batch rolls back run, session and all rewards; retry succeeds
+  ---
+  duration_ms: 193.604996
+  type: 'test'
+  ...
+# Subtest: ownership, expiry, unsupported modes, CSRF, expired sessions and logout are enforced
+ok 14 - ownership, expiry, unsupported modes, CSRF, expired sessions and logout are enforced
+  ---
+  duration_ms: 205.096066
+  type: 'test'
+  ...
+# Subtest: one row per player, earliest-achievement ties, own rank and lifetime fares
+ok 15 - one row per player, earliest-achievement ties, own rank and lifetime fares
+  ---
+  duration_ms: 421.860613
+  type: 'test'
+  ...
+# Subtest: name uniqueness/cooldown and optimistic progress keep stale devices from overwriting
+ok 16 - name uniqueness/cooldown and optimistic progress keep stale devices from overwriting
+  ---
+  duration_ms: 334.268982
+  type: 'test'
+  ...
+# Subtest: UTC day and Monday boundaries are independent of local timezone
+ok 17 - UTC day and Monday boundaries are independent of local timezone
+  ---
+  duration_ms: 15.01213
+  type: 'test'
+  ...
+1..17
+# tests 17
+# suites 0
+# pass 17
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 8842.868178

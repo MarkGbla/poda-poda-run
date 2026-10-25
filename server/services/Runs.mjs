@@ -1,3 +1,4 @@
+import { qualify, getStreak } from './Streaks.mjs';
 import { HttpError, json, readJson, limit } from '../http.mjs';
 import { hash } from '../auth/session.mjs';
 import { GAME_VERSION, RUN_TTL, eligible, validateRun, calculateOfficialScore } from './ScoreValidator.mjs';
@@ -15,7 +16,17 @@ export async function startRun(request, env, player) {
     .bind(crypto.randomUUID(), player.id, data.requestId, data.vehicle, data.route, GAME_VERSION, now, now + RUN_TTL).run();
   const row = await env.DB.prepare('SELECT * FROM account_run_sessions WHERE player_id=? AND request_id=?').bind(player.id, data.requestId).first();
   if (row.vehicle_id !== data.vehicle || row.route_id !== data.route || row.ruleset !== data.gameVersion) throw new HttpError(409, 'Run start was already used with different settings');
-  return json({ runId: row.run_id, playerId: player.id, expiresAt: row.expires_at, gameVersion: row.ruleset });
+  let streak = null;
+  try {
+    const earned = await qualify(env, player.id, row.request_id, row.started_at);
+    // A retry may refer to a run started on an earlier date. Present today's status.
+    const current = await getStreak(env, player.id);
+    streak = { ...current, grew: earned.grew && earned.today === current.today };
+  } catch {
+    // A streak outage must not discard a valid ranked-run session.
+    console.error('Streak qualification unavailable');
+  }
+  return json({ streak, runId: row.run_id, playerId: player.id, expiresAt: row.expires_at, gameVersion: row.ruleset });
 }
 const receipt = row => ({ runId: row.run_id, score: row.score, earnings: row.earnings, acceptedAt: row.accepted_at, status: 'accepted' });
 export async function finishRun(request, env, player) {

@@ -1,0 +1,15 @@
+.streak-indicator{border:1px solid #e7b95b66;border-radius:999px;background:#2a2318;color:#ffe4a2;padding:8px 13px;font:700 13px/1.2 system-ui;cursor:pointer;min-height:40px}
+.streak-dialog{box-sizing:border-box;width:min(390px,calc(100vw - 28px));max-height:calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom));overflow:auto;padding:28px 28px 24px;border:1px solid #e4af5455;border-radius:26px;background:radial-gradient(ellipse at 50% 0,#644127 0, #24231d 47%,#171c1c 100%);color:#fff3d8;text-align:center;box-shadow:0 24px 90px #0009;font-family:system-ui,sans-serif}
+.streak-dialog::backdrop{background:#071113d9;backdrop-filter:blur(5px)}
+.streak-flame{font-size:64px;line-height:1.15;filter:drop-shadow(0 0 18px #ffb63844)}
+.streak-eyebrow{font-size:10px;letter-spacing:.19em;font-weight:800;color:#e4c89e;margin:15px 0 8px}
+#streakCount{display:block;font-size:clamp(68px,20vw,102px);line-height:1;font-weight:900;letter-spacing:-.06em;color:#ffc35e;font-variant-numeric:tabular-nums}
+#streakHeading{font-size:25px;line-height:1.1;margin:5px 0 18px;color:#ffc35e}
+#streakMessage{font-size:15px;line-height:1.5;max-width:270px;margin:0 auto 12px}
+#streakBest{font-size:12px;color:#c5c4b5;margin:0 0 23px}
+#streakContinue{width:100%;min-height:48px;border:0;border-radius:13px;background:#f3c458;color:#17201c;font:800 15px system-ui;cursor:pointer;box-shadow:0 4px 0 #9c7427}
+.streak-indicator:focus-visible,#streakContinue:focus-visible{outline:3px solid #fff;outline-offset:4px}
+.streak-dialog.celebrating[open]{animation:streak-enter .28s ease-out}
+@keyframes streak-enter{from{opacity:0;transform:translateY(12px) scale(.97)}to{opacity:1;transform:none}}
+@media(max-height:500px){.streak-dialog{width:min(480px,calc(100vw - 28px));padding:14px 24px}.streak-flame{font-size:32px}.streak-eyebrow{margin:5px 0}#streakCount{font-size:56px}#streakHeading{font-size:20px;margin:2px 0 8px}#streakMessage{max-width:100%;font-size:13px;margin-bottom:6px}#streakBest{margin-bottom:10px}#streakContinue{min-height:44px}}
+@media(prefers-reduced-motion:reduce){.streak-dialog.celebrating[open]{animation:none}}

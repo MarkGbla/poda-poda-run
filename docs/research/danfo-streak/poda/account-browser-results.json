@@ -1,0 +1,10 @@
+{
+  "results": [
+    "login preserves trusted empty account; unsigned guest 7-day history stays separate",
+    "failed server requests do not fabricate progress; reconnect retries and confirms one day",
+    "two browser sessions qualify one server day; no dialog during moving gameplay",
+    "separate device refresh restores authoritative account count",
+    "logout restores guest history and does not expose account count"
+  ],
+  "errors": []
+}
