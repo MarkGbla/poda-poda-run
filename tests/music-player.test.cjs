@@ -25,7 +25,7 @@ function player() {
 test('soundtrack plays and loops from the final track to the first', async () => {
   const p = player(); p.run('playMusic()'); await Promise.resolve();
   assert.equal(p.run('aux.el.paused'), false);
-  for (let i = 0; i < 4; i++) { p.run('aux.el.handlers.ended()'); await Promise.resolve(); }
+  for (let i = 0; i < p.run('SOUNDTRACK.length'); i++) { p.run('aux.el.handlers.ended()'); await Promise.resolve(); }
   assert.equal(p.run('aux.i'), 0);
   assert.equal(p.run('aux.list[aux.i].name'), 'Go');
 });
