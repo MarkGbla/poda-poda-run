@@ -22,7 +22,7 @@ test('real OAuth callback flow checks PKCE, consumes state once and deduplicates
   const pair=await generateKeyPair('RS256',{extractable:true});
   const jwk=await exportJWK(pair.publicKey);jwk.kid='test-key';jwk.alg='RS256';
   const DB=database(),env={DB,PUBLIC_ORIGIN:'https://podapodarun.com',GOOGLE_CLIENT_ID:'test-client',GOOGLE_CLIENT_SECRET:'test-secret'};
-  const original=global.fetch;let nonce, verifier, exchanges=0;
+  const original=global.fetch;let nonce, verifier, exchanges=0, issuer='https://accounts.google.com';
   global.fetch=async(url,options)=>{
     if(String(url).includes('/certs'))return Response.json({keys:[jwk]});
     assert.equal(String(url),'https://oauth2.googleapis.com/token');
@@ -30,11 +30,12 @@ test('real OAuth callback flow checks PKCE, consumes state once and deduplicates
     assert.equal(form.get('redirect_uri'),'https://podapodarun.com/api/auth/google/callback');
     exchanges++;
     const id_token=await new SignJWT({nonce,email:'private@example.test',name:'Private Name'}).setProtectedHeader({alg:'RS256',kid:'test-key'})
-      .setSubject('same-sub').setIssuer('https://accounts.google.com').setAudience('test-client').setIssuedAt().setExpirationTime('5m').sign(pair.privateKey);
+      .setSubject('same-sub').setIssuer(issuer).setAudience('test-client').setIssuedAt().setExpirationTime('5m').sign(pair.privateKey);
     return Response.json({access_token:'not-stored',token_type:'Bearer',expires_in:3600,id_token});
   };
   try {
-    for(let i=0;i<2;i++) {
+    for (const tokenIssuer of ['https://accounts.google.com', 'accounts.google.com', 'https://evil.test']) {
+      issuer = tokenIssuer;
       const start=await worker.fetch(request('/api/auth/google'),env);
       const target=new URL(start.headers.get('location')), state=target.searchParams.get('state');
       assert.equal(target.searchParams.get('scope'),'openid');assert.equal(target.searchParams.get('code_challenge_method'),'S256');
@@ -45,12 +46,17 @@ test('real OAuth callback flow checks PKCE, consumes state once and deduplicates
       const bad=await worker.fetch(request(callback,null,undefined,{cookie:'__Host-poda-oauth='+'0'.repeat(64)}),env);
       assert.equal(bad.headers.get('location'),'/?account=error');
       const response=await worker.fetch(request(callback,null,undefined,{cookie:browserCookie}),env);
+      if (issuer === 'https://evil.test') {
+        assert.equal(response.headers.get('location'), '/?account=error');
+        assert.equal(DB.sql.prepare('SELECT COUNT(*) n FROM app_sessions').get().n, 2);
+        continue;
+      }
       assert.equal(response.headers.get('location'),'/?account=signed-in');
       assert.ok(response.headers.getSetCookie().some(c=>c.startsWith('__Host-poda-session=')&&c.includes('HttpOnly')&&c.includes('Secure')));
       const replay=await worker.fetch(request(callback,null,undefined,{cookie:browserCookie}),env);
       assert.equal(replay.headers.get('location'),'/?account=error');
     }
-    assert.equal(exchanges,2);assert.equal(DB.sql.prepare('SELECT COUNT(*) n FROM players').get().n,1);
+    assert.equal(exchanges,3);assert.equal(DB.sql.prepare('SELECT COUNT(*) n FROM players').get().n,1);
     assert.equal(DB.sql.prepare('SELECT driver_name FROM players').get().driver_name,null);
     assert.ok(!JSON.stringify(DB.sql.prepare('SELECT * FROM players').all()).includes('private@example.test'));
   } finally {global.fetch=original;}

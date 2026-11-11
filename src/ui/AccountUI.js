@@ -76,8 +76,12 @@ export function createAccountUI({ api, store, applyPreferences, canApply, onProf
   $('homeGoogleLogin').addEventListener('click', async event => {
     if (api.account?.authAvailable) return;
     event.preventDefault();
-    open();
-    await refresh();
+    const account = await refresh();
+    if (account?.authAvailable && !account.player) {
+      location.assign($('homeGoogleLogin').href);
+    } else {
+      open();
+    }
   });
   $('accountTitle').addEventListener('click', open);
   $('accountResult').addEventListener('click', open);

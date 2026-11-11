@@ -1,5 +1,5 @@
 import * as oauth from 'oauth4webapi';
-import { createRemoteJWKSet, jwtVerify } from 'jose';
+import { createRemoteJWKSet, jwtVerify, decodeJwt } from 'jose';
 import { cookie, readCookie, randomToken, hash, createSession } from './session.mjs';
 import { HttpError, limit } from '../http.mjs';
 const google = { issuer: 'https://accounts.google.com', authorization_endpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
@@ -51,7 +51,12 @@ export async function finishLogin(request, env) {
     const parameters = oauth.validateAuthResponse(google, client, url, state);
     const response = await oauth.authorizationCodeGrantRequest(google, client, oauth.ClientSecretPost(env.GOOGLE_CLIENT_SECRET),
       parameters, callback(env), attempt.verifier, { signal: AbortSignal.timeout(10000) });
-    const tokens = await oauth.processAuthorizationCodeResponse(google, client, response, { expectedNonce: attempt.nonce, requireIdToken: true });
+    // Google documents both issuer spellings. Select only a known spelling for
+    // the OAuth parser; verifyGoogleIdentity still verifies the signature and claims.
+    const body = await response.clone().json();
+    const issuer = typeof body.id_token === 'string' ? decodeJwt(body.id_token).iss : null;
+    if (!['https://accounts.google.com', 'accounts.google.com'].includes(issuer)) throw new Error('Invalid issuer');
+    const tokens = await oauth.processAuthorizationCodeResponse({ ...google, issuer }, client, response, { expectedNonce: attempt.nonce, requireIdToken: true });
     const subject = await verifyGoogleIdentity(tokens.id_token, env.GOOGLE_CLIENT_ID, attempt.nonce);
     const now = Date.now();
     const player = await env.DB.prepare(`INSERT INTO players (id,google_sub,created_at,last_login_at) VALUES (?,?,?,?)
